@@ -1,0 +1,50 @@
+# ============================================================
+# docker-compose.yml base | Proyecto Django + Postgres
+# ISDEM - Práctica Profesional II - Prof. Lic. Adrián Aguirre
+#
+# Servicios:
+#   - db  -> base de datos Postgres
+#   - web -> aplicación Django
+# ============================================================
+
+services:
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-proyecto_db}
+      POSTGRES_USER: ${POSTGRES_USER:-proyecto_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-proyecto_pass}
+    volumes:
+      # Volumen nombrado: los datos de la base persisten aunque se borre el contenedor
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Solo para poder conectarse desde afuera con DBeaver/pgAdmin si hace falta.
+      # No es necesario para que Django se conecte (usa el nombre de servicio "db").
+      - "5432:5432"
+
+  web:
+    build: .
+    restart: unless-stopped
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      # Monta el código del host dentro del contenedor: los cambios que hagan
+      # en su editor (VS Code) se reflejan al instante, sin reconstruir la imagen.
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DEBUG: "1"
+      SECRET_KEY: "clave-secreta-de-desarrollo-cambiar-en-produccion"
+      DJANGO_ALLOWED_HOSTS: "*"
+      POSTGRES_DB: ${POSTGRES_DB:-proyecto_db}
+      POSTGRES_USER: ${POSTGRES_USER:-proyecto_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-proyecto_pass}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

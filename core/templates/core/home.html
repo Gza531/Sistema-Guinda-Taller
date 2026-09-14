@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Proyecto funcionando</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: #EAF1F8;
+            color: #12202E;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: #FFFFFF;
+            border: 1px solid #CFDCE8;
+            border-radius: 12px;
+            padding: 40px 48px;
+            max-width: 560px;
+            box-shadow: 0 4px 16px rgba(11, 37, 69, 0.08);
+        }
+        h1 {
+            color: #0B2545;
+            margin-top: 0;
+        }
+        .badge {
+            display: inline-block;
+            background: #1B4F82;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+        code {
+            background: #EAF1F8;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        footer {
+            margin-top: 24px;
+            font-size: 13px;
+            color: #5A6B7B;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <span class="badge">Stack funcionando</span>
+        <h1>Django + Docker + Postgres</h1>
+        <p>Si están viendo esta página, el contenedor de Django se conectó
+        correctamente a la base de datos Postgres y el servidor está corriendo.</p>
+        <p>Hora del servidor: <code>{{ hora_actual }}</code></p>
+        <p>Ahora reemplacen esta vista por las de su propio proyecto para la
+        organización que les toque en Práctica Profesional II.</p>
+        <footer>ISDEM &middot; Práctica Profesional II &middot; Prof. Lic. Adrián Aguirre</footer>
+    </div>
+</body>
+</html>
