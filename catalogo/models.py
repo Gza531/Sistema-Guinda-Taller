@@ -3,10 +3,15 @@ from django.core.validators import MinValueValidator
 
 
 class Marca(models.Model):
-    nombre = models.CharField(max_length=120)
+    id_marca = models.AutoField(primary_key=True)
+
+    nombre = models.CharField(
+        max_length=80,
+        unique=True
+    )
 
     descripcion = models.CharField(
-        max_length=500,
+        max_length=255,
         null=True,
         blank=True
     )
@@ -18,10 +23,15 @@ class Marca(models.Model):
 
 
 class Categoria(models.Model):
-    nombre = models.CharField(max_length=120)
+    id_categoria = models.AutoField(primary_key=True)
+
+    nombre = models.CharField(
+        max_length=50,
+        unique=True
+    )
 
     descripcion = models.CharField(
-        max_length=500,
+        max_length=255,
         null=True,
         blank=True
     )
@@ -48,6 +58,8 @@ class Producto(models.Model):
         NACIONAL = "NACIONAL", "Nacional"
         IMPORTADO = "IMPORTADO", "Importado"
 
+    id_producto = models.AutoField(primary_key=True)
+
     version_producto = models.CharField(
         max_length=20,
         choices=VersionProducto.choices,
@@ -62,7 +74,7 @@ class Producto(models.Model):
         blank=True
     )
 
-    presentacion = models.CharField(
+    volumen = models.CharField(
         max_length=60,
         null=True,
         blank=True
@@ -80,12 +92,14 @@ class Producto(models.Model):
 
     marca = models.ForeignKey(
         Marca,
-        on_delete=models.PROTECT
+        on_delete=models.PROTECT,
+        db_column="id_marca"
     )
 
     categoria = models.ForeignKey(
         Categoria,
-        on_delete=models.PROTECT
+        on_delete=models.PROTECT,
+        db_column="id_categoria"
     )
 
     precio_costo = models.DecimalField(
@@ -104,7 +118,6 @@ class Producto(models.Model):
     origen = models.CharField(
         max_length=20,
         choices=OrigenProducto.choices,
-        default=OrigenProducto.NACIONAL
     )
 
     def __str__(self):

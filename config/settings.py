@@ -43,12 +43,17 @@ INSTALLED_APPS = [
 
     # Terceros
     'rest_framework',
+    "corsheaders",
 
     # Apps propias del proyecto
     'core',
     'api',
     'catalogo',
+    'seguridad',
+    'compras'
 ]
+
+AUTH_USER_MODEL = "seguridad.Usuario"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -58,6 +63,11 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
+]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
 ]
 
 ROOT_URLCONF = 'config.urls'

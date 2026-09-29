@@ -1,7 +1,9 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-
+from rest_framework import viewsets
+from catalogo.models import Producto
+from .serializers import ProductoSerializer
 
 class EstadoAPIView(APIView):
     """
@@ -23,3 +25,7 @@ class EstadoAPIView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+class ProductoViewSet(viewsets.ModelViewSet):
+    queryset = Producto.objects.all()
+    serializer_class = ProductoSerializer
