@@ -3,7 +3,10 @@ from django.core.validators import MinValueValidator
 
 
 class Marca(models.Model):
-    id_marca = models.AutoField(primary_key=True)
+
+    id_marca = models.AutoField(
+        primary_key=True
+    )
 
     nombre = models.CharField(
         max_length=80,
@@ -16,17 +19,25 @@ class Marca(models.Model):
         blank=True
     )
 
-    estado = models.BooleanField(default=True)
+    estado = models.BooleanField(
+        default=True
+    )
+
+    class Meta:
+        db_table = "marcas"
 
     def __str__(self):
         return self.nombre
 
 
 class Categoria(models.Model):
-    id_categoria = models.AutoField(primary_key=True)
+
+    id_categoria = models.AutoField(
+        primary_key=True
+    )
 
     nombre = models.CharField(
-        max_length=50,
+        max_length=80,
         unique=True
     )
 
@@ -36,7 +47,12 @@ class Categoria(models.Model):
         blank=True
     )
 
-    estado = models.BooleanField(default=True)
+    estado = models.BooleanField(
+        default=True
+    )
+
+    class Meta:
+        db_table = "categorias"
 
     def __str__(self):
         return self.nombre
@@ -58,7 +74,9 @@ class Producto(models.Model):
         NACIONAL = "NACIONAL", "Nacional"
         IMPORTADO = "IMPORTADO", "Importado"
 
-    id_producto = models.AutoField(primary_key=True)
+    id_producto = models.AutoField(
+        primary_key=True
+    )
 
     version_producto = models.CharField(
         max_length=20,
@@ -66,7 +84,9 @@ class Producto(models.Model):
         default=VersionProducto.ORIGINAL
     )
 
-    nombre = models.CharField(max_length=120)
+    nombre = models.CharField(
+        max_length=120
+    )
 
     descripcion = models.CharField(
         max_length=500,
@@ -80,15 +100,37 @@ class Producto(models.Model):
         blank=True
     )
 
+    genero_producto = models.CharField(
+        max_length=20,
+        choices=GeneroProducto.choices,
+        null=True,
+        blank=True
+    )
+
+    origen = models.CharField(
+        max_length=20,
+        choices=OrigenProducto.choices
+    )
+
     precio_venta = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         validators=[MinValueValidator(0)]
     )
 
-    fecha_alta = models.DateField(auto_now_add=True)
+    fecha_alta = models.DateField(
+        auto_now_add=True
+    )
 
-    estado = models.BooleanField(default=True)
+    estado = models.BooleanField(
+        default=True
+    )
+
+    imagen = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True
+    )
 
     marca = models.ForeignKey(
         Marca,
@@ -102,23 +144,8 @@ class Producto(models.Model):
         db_column="id_categoria"
     )
 
-    precio_costo = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        validators=[MinValueValidator(0)]
-    )
-
-    genero_producto = models.CharField(
-        max_length=20,
-        choices=GeneroProducto.choices,
-        null=True,
-        blank=True
-    )
-
-    origen = models.CharField(
-        max_length=20,
-        choices=OrigenProducto.choices,
-    )
+    class Meta:
+        db_table = "productos"
 
     def __str__(self):
         return self.nombre

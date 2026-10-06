@@ -50,7 +50,11 @@ INSTALLED_APPS = [
     'api',
     'catalogo',
     'seguridad',
-    'compras'
+    'compras',
+    'stock',
+    'ventas',
+    'promociones',
+    'cajas'
 ]
 
 AUTH_USER_MODEL = "seguridad.Usuario"
@@ -142,6 +146,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Django REST Framework (configuración mínima, para cuando empiecen con la API)
 # --------------------------------------------------------------------------
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+    "rest_framework_simplejwt.authentication.JWTAuthentication",),
+
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+}
+
+SIMPLE_JWT = {
+    "USER_ID_FIELD": "id_usuario",
+    "USER_ID_CLAIM": "user_id",
 }
