@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
+from django.utils import timezone
 
 
 class Usuario(AbstractUser):
@@ -125,5 +126,8 @@ class Auditoria(models.Model):
     class Meta:
         db_table = "auditorias"
 
+    from django.utils import timezone
+
     def __str__(self):
-        return f"{self.accion} - {self.tabla_afectada} - {self.fecha_hora}"
+        fecha = timezone.localtime(self.fecha_hora).strftime("%d/%m/%Y %H:%M")
+        return f"{self.accion} - {self.tabla_afectada} - {fecha}"

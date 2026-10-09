@@ -140,3 +140,5 @@ class MovimientoStock(models.Model):
                 name="ajuste_reposicion_sin_compra_venta"
             )
             ]
+    def __str__(self):
+        return f"{self.tipo_movimiento} - {self.stock.producto.nombre} - {self.cantidad}"
