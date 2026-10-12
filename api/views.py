@@ -2,11 +2,27 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
-from catalogo.models import Producto
-from .serializers import ProductoSerializer
+
 from django.contrib.auth import authenticate
+
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import IsAuthenticated
+
+from rest_framework.permissions import (
+    IsAuthenticated,
+    IsAuthenticatedOrReadOnly,
+)
+
+from catalogo.models import (
+    Producto,
+    Marca,
+    Categoria,
+)
+
+from .serializers import (
+    ProductoSerializer,
+    MarcaSerializer,
+    CategoriaSerializer,
+)
 
 
 class EstadoAPIView(APIView):
@@ -25,8 +41,36 @@ class EstadoAPIView(APIView):
 
 
 class ProductoViewSet(viewsets.ModelViewSet):
-    queryset = Producto.objects.all()
+    queryset = Producto.objects.select_related(
+        "marca",
+        "categoria"
+    ).all()
+
     serializer_class = ProductoSerializer
+
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+    ]
+
+
+class MarcaViewSet(viewsets.ModelViewSet):
+    queryset = Marca.objects.all()
+
+    serializer_class = MarcaSerializer
+
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+    ]
+
+
+class CategoriaViewSet(viewsets.ModelViewSet):
+    queryset = Categoria.objects.all()
+
+    serializer_class = CategoriaSerializer
+
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+    ]
 
 
 class LoginAPIView(APIView):
@@ -71,6 +115,7 @@ class LoginAPIView(APIView):
             },
             status=status.HTTP_401_UNAUTHORIZED
         )
+
 
 class PerfilAPIView(APIView):
     permission_classes = [IsAuthenticated]

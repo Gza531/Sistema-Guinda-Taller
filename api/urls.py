@@ -2,11 +2,20 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .views import EstadoAPIView, ProductoViewSet, LoginAPIView, PerfilAPIView
+from .views import EstadoAPIView, ProductoViewSet, LoginAPIView, PerfilAPIView, MarcaViewSet, CategoriaViewSet
 
 
 router = DefaultRouter()
 router.register(r'productos', ProductoViewSet)
+router.register(
+    r"marcas",
+    MarcaViewSet
+)
+router.register(
+    r"categorias",
+    CategoriaViewSet
+)
+
 
 
 urlpatterns = [

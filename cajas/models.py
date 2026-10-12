@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from decimal import Decimal
+from django.utils import timezone
 
 
 class Caja(models.Model):
@@ -96,7 +97,9 @@ class AperturaCierreCaja(models.Model):
         db_table = "apertura_cierre_cajas"
 
     def __str__(self):
-        return f"Caja {self.caja} - Apertura {self.fecha_apertura}"
+        fecha = timezone.localtime(self.fecha_apertura).strftime("%d/%m/%Y %H:%M")
+        estado = "Abierta" if self.fecha_cierre is None else "Cerrada"
+        return f"{self.caja.nombre} - {estado} - {fecha}"
 
 class MetodoPago(models.Model):
 
@@ -193,8 +196,5 @@ class MovimientoCaja(models.Model):
         ]
 
     def __str__(self):
-        return (
-            f"{self.tipo_movimiento} - "
-            f"${self.monto} - "
-            f"{self.fecha_hora}"
-        )
+        fecha = timezone.localtime(self.fecha_hora).strftime("%d/%m/%Y %H:%M")
+        return f"{self.tipo_movimiento} - ${self.monto} - {fecha}"
