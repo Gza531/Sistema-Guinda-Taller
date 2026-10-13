@@ -7,6 +7,7 @@ Las variables de entorno se leen desde el docker-compose.yml / archivo .env.
 
 import os
 from pathlib import Path
+from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -59,6 +60,10 @@ INSTALLED_APPS = [
 
 AUTH_USER_MODEL = "seguridad.Usuario"
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -70,9 +75,7 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-]
+
 
 ROOT_URLCONF = 'config.urls'
 
@@ -146,14 +149,20 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Django REST Framework (configuración mínima, para cuando empiecen con la API)
 # --------------------------------------------------------------------------
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-    "rest_framework_simplejwt.authentication.JWTAuthentication",),
-
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10,
-}
+       "DEFAULT_AUTHENTICATION_CLASSES": (
+           "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+       ),
+       "DEFAULT_PERMISSION_CLASSES": (
+           "core.permissions.PermisoGuinda",
+       ),
+       "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+       "PAGE_SIZE": 10,
+   }
 
 SIMPLE_JWT = {
     "USER_ID_FIELD": "id_usuario",
     "USER_ID_CLAIM": "user_id",
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }

@@ -8,6 +8,7 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from rest_framework.permissions import (
+    AllowAny,
     IsAuthenticated,
     IsAuthenticatedOrReadOnly,
 )
@@ -74,6 +75,7 @@ class CategoriaViewSet(viewsets.ModelViewSet):
 
 
 class LoginAPIView(APIView):
+    permission_classes = [AllowAny]
 
     def post(self, request):
         username = request.data.get("username")
