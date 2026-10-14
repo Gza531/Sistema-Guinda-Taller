@@ -3,6 +3,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
 
+from core.mixins import BajaLogicaMixin
+
 from django.contrib.auth import authenticate
 
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -41,7 +43,7 @@ class EstadoAPIView(APIView):
         )
 
 
-class ProductoViewSet(viewsets.ModelViewSet):
+class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Producto.objects.select_related(
         "marca",
         "categoria"
@@ -54,7 +56,7 @@ class ProductoViewSet(viewsets.ModelViewSet):
     ]
 
 
-class MarcaViewSet(viewsets.ModelViewSet):
+class MarcaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Marca.objects.all()
 
     serializer_class = MarcaSerializer
@@ -64,7 +66,7 @@ class MarcaViewSet(viewsets.ModelViewSet):
     ]
 
 
-class CategoriaViewSet(viewsets.ModelViewSet):
+class CategoriaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Categoria.objects.all()
 
     serializer_class = CategoriaSerializer
