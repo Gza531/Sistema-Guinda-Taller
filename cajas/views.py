@@ -1,3 +1,33 @@
-from django.shortcuts import render
+from rest_framework import status, viewsets
+from rest_framework.response import Response
 
-# Create your views here.
+from .models import MetodoPago
+from .serializers import MetodoPagoSerializer
+
+
+class MetodoPagoViewSet(viewsets.ModelViewSet):
+    """
+    /api/cajas/metodos-pago/
+      GET           lista (filtro opcional: ?estado=true o ?estado=false)
+      POST          crea un método de pago
+      GET    /{id}/ detalle
+      PATCH  /{id}/ modifica; también sirve para reactivarlo: {"estado": true}
+      DELETE /{id}/ NO borra: lo da de baja (estado = False)
+    """
+
+    serializer_class = MetodoPagoSerializer
+
+    def get_queryset(self):
+        qs = MetodoPago.objects.order_by("nombre")
+        estado = self.request.query_params.get("estado")
+        if estado in ("true", "1"):
+            qs = qs.filter(estado=True)
+        elif estado in ("false", "0"):
+            qs = qs.filter(estado=False)
+        return qs
+
+    def destroy(self, request, *args, **kwargs):
+        metodo = self.get_object()
+        metodo.estado = False
+        metodo.save(update_fields=["estado"])
+        return Response(self.get_serializer(metodo).data, status=status.HTTP_200_OK)
