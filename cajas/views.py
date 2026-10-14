@@ -4,8 +4,10 @@ from rest_framework.response import Response
 from .models import MetodoPago
 from .serializers import MetodoPagoSerializer
 
+from core.mixins import BajaLogicaMixin
 
-class MetodoPagoViewSet(viewsets.ModelViewSet):
+
+class MetodoPagoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     """
     /api/cajas/metodos-pago/
       GET           lista (filtro opcional: ?estado=true o ?estado=false)
@@ -26,8 +28,3 @@ class MetodoPagoViewSet(viewsets.ModelViewSet):
             qs = qs.filter(estado=False)
         return qs
 
-    def destroy(self, request, *args, **kwargs):
-        metodo = self.get_object()
-        metodo.estado = False
-        metodo.save(update_fields=["estado"])
-        return Response(self.get_serializer(metodo).data, status=status.HTTP_200_OK)
