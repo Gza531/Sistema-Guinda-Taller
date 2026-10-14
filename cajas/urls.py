@@ -1,9 +1,10 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import MetodoPagoViewSet
+from .views import CajaViewSet, MetodoPagoViewSet
 
 router = DefaultRouter()
+router.register("cajas", CajaViewSet, basename="caja")
 router.register("metodos-pago", MetodoPagoViewSet, basename="metodo-pago")
 
 urlpatterns = [

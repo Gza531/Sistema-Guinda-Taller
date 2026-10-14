@@ -1,10 +1,9 @@
-from rest_framework import status, viewsets
-from rest_framework.response import Response
-
-from .models import MetodoPago
-from .serializers import MetodoPagoSerializer
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
 
 from core.mixins import BajaLogicaMixin
+from .models import Caja, MetodoPago
+from .serializers import CajaSerializer, MetodoPagoSerializer
 
 
 class MetodoPagoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
@@ -28,3 +27,22 @@ class MetodoPagoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
             qs = qs.filter(estado=False)
         return qs
 
+class CajaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
+    """
+    /api/cajas/cajas/
+      GET     lista (filtros: ?tipo=presencial|online, ?estado=true|false)
+      POST    alta
+      PATCH   /{id}/ modificación
+      DELETE  /{id}/ baja lógica
+    """
+
+    queryset = Caja.objects.order_by("nombre")
+    serializer_class = CajaSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tipo = self.request.query_params.get("tipo")
+        if tipo:
+            qs = qs.filter(tipo_caja=tipo.upper())
+        return qs
