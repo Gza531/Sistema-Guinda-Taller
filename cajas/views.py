@@ -2,12 +2,13 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.decorators import action
 
 from core.mixins import BajaLogicaMixin
 from . import services
 from .models import AperturaCierreCaja, Caja, MetodoPago
 from .serializers import (
-    AbrirCajaSerializer, CajaSerializer, MetodoPagoSerializer, SesionCajaSerializer,
+    AbrirCajaSerializer, CajaSerializer, MetodoPagoSerializer, SesionCajaSerializer, CerrarCajaSerializer, ArqueoSerializer, 
 )
 
 
@@ -98,6 +99,14 @@ class SesionCajaViewSet(mixins.ListModelMixin,
             return AbrirCajaSerializer
         return SesionCajaSerializer
 
+    def get_serializer_class(self):
+        if self.action == "create":
+            return AbrirCajaSerializer
+        if self.action == "cerrar":
+            return CerrarCajaSerializer
+        return SesionCajaSerializer
+    
+
     def create(self, request):
         entrada = AbrirCajaSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
@@ -109,3 +118,27 @@ class SesionCajaViewSet(mixins.ListModelMixin,
             observaciones=d.get("observaciones") or None,
         )
         return Response(SesionCajaSerializer(sesion).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["get"])
+    def resumen(self, request, pk=None):
+        """GET /sesiones/{id}/resumen/ : arqueo de la sesión (abierta o cerrada)."""
+        return Response(ArqueoSerializer(services.resumen_sesion(self.get_object())).data)
+
+    @action(detail=True, methods=["post"])
+    def cerrar(self, request, pk=None):
+        """POST /sesiones/{id}/cerrar/ : {"monto_final": "15800.00", "observaciones": "..."}"""
+        sesion = self.get_object()
+        entrada = CerrarCajaSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        d = entrada.validated_data
+        sesion = services.cerrar_caja(
+            sesion=sesion,
+            monto_final=d["monto_final"],
+            observaciones=d.get("observaciones") or None,
+        )
+        return Response({
+            "sesion": SesionCajaSerializer(sesion).data,
+            "arqueo": ArqueoSerializer(services.resumen_sesion(sesion)).data,
+        })
+    
+  

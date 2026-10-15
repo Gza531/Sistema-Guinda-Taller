@@ -71,3 +71,27 @@ class AbrirCajaSerializer(serializers.Serializer):
     caja = serializers.PrimaryKeyRelatedField(queryset=Caja.objects.all())
     monto_inicial = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=0)
     observaciones = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+class CerrarCajaSerializer(serializers.Serializer):
+    """Datos que manda el frontend para cerrar una caja."""
+
+    monto_final = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=0)
+    observaciones = serializers.CharField(max_length=250, required=False, allow_blank=True)
+
+
+class TotalMetodoSerializer(serializers.Serializer):
+    metodo = serializers.CharField()
+    ingresos = serializers.DecimalField(max_digits=14, decimal_places=2)
+    egresos = serializers.DecimalField(max_digits=14, decimal_places=2)
+
+
+class ArqueoSerializer(serializers.Serializer):
+    """Formatea el resultado de services.resumen_sesion (no es un modelo)."""
+
+    monto_inicial = serializers.DecimalField(max_digits=14, decimal_places=2)
+    ingresos_efectivo = serializers.DecimalField(max_digits=14, decimal_places=2)
+    egresos_efectivo = serializers.DecimalField(max_digits=14, decimal_places=2)
+    efectivo_esperado = serializers.DecimalField(max_digits=14, decimal_places=2)
+    efectivo_contado = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)
+    diferencia = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)
+    por_metodo = TotalMetodoSerializer(many=True)
