@@ -17,7 +17,8 @@ def _obtener_stock(producto, ubicacion, crear=False):
 
 
 @transaction.atomic
-def registrar_entrada(*, producto, ubicacion, cantidad, usuario, motivo=None):
+def registrar_entrada(*, producto, ubicacion, cantidad, usuario, motivo=None,
+                      compra=None, venta=None):
     """Suma unidades. Si el producto no tenía stock en esa ubicación, lo crea."""
     stock = _obtener_stock(producto, ubicacion, crear=True)
 
@@ -30,11 +31,13 @@ def registrar_entrada(*, producto, ubicacion, cantidad, usuario, motivo=None):
         cantidad=cantidad,
         usuario=usuario,
         motivo=motivo,
+        compra=compra,
+        venta=venta,
     )
 
 
 @transaction.atomic
-def registrar_salida(*, producto, ubicacion, cantidad, usuario, motivo=None):
+def registrar_salida(*, producto, ubicacion, cantidad, usuario, motivo=None, venta=None):
     """Resta unidades. No permite que el stock quede negativo."""
     stock = _obtener_stock(producto, ubicacion)
 
@@ -52,6 +55,7 @@ def registrar_salida(*, producto, ubicacion, cantidad, usuario, motivo=None):
         cantidad=cantidad,
         usuario=usuario,
         motivo=motivo,
+        venta=venta
     )
 
 @transaction.atomic
