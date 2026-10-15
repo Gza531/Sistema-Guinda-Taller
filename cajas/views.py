@@ -1,5 +1,5 @@
 from rest_framework import mixins, status, viewsets
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -31,6 +31,20 @@ class MetodoPagoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
         elif estado in ("false", "0"):
             qs = qs.filter(estado=False)
         return qs
+
+    def _bloquear_efectivo(self):
+        if self.get_object().es_efectivo:
+            raise PermissionDenied(
+                "El método «Efectivo» lo usa el arqueo de caja: no se puede modificar ni dar de baja."
+            )
+
+    def update(self, request, *args, **kwargs):
+        self._bloquear_efectivo()
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        self._bloquear_efectivo()
+        return super().destroy(request, *args, **kwargs)
 
 class CajaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     """
