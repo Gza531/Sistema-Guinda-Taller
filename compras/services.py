@@ -102,3 +102,23 @@ def recibir_compra(*, compra, usuario):
     compra.save(update_fields=["estado"])
 
     return compra
+@transaction.atomic
+def anular_compra(*, compra):
+    compra = Compra.objects.select_for_update().get(
+        pk=compra.pk
+    )
+
+    if compra.estado == Compra.EstadoCompra.RECIBIDA:
+        raise ValidationError({
+            "estado": "No se puede anular una compra ya recibida."
+        })
+
+    if compra.estado == Compra.EstadoCompra.ANULADA:
+        raise ValidationError({
+            "estado": "La compra ya está anulada."
+        })
+
+    compra.estado = Compra.EstadoCompra.ANULADA
+    compra.save(update_fields=["estado"])
+
+    return compra

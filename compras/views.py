@@ -1,7 +1,8 @@
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from core.mixins import BajaLogicaMixin
 
 from . import services
 from .models import Proveedor, ProveedorXProducto, Compra, DetalleCompra
@@ -14,7 +15,7 @@ from .serializers import (
 )
 
 
-class ProveedorViewSet(viewsets.ModelViewSet):
+class ProveedorViewSet(BajaLogicaMixin,viewsets.ModelViewSet):
     queryset = Proveedor.objects.all().order_by("razon_social")
     serializer_class = ProveedorSerializer
     permission_classes = [IsAuthenticated]
@@ -30,7 +31,7 @@ class ProveedorXProductoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
-class CompraViewSet(viewsets.ModelViewSet):
+class CompraViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.CreateModelMixin,viewsets.GenericViewSet):
     queryset = Compra.objects.select_related(
         "proveedor",
         "usuario"
@@ -73,13 +74,35 @@ class CompraViewSet(viewsets.ModelViewSet):
             serializer.data,
             status=status.HTTP_200_OK
         )
+    @action(detail=True, methods=["post"], url_path="anular")
+    def anular(self, request, pk=None):
+        compra = self.get_object()
+
+        compra = services.anular_compra(
+            compra=compra
+        )
+
+        serializer = self.get_serializer(compra)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK
+        )
 
 
-class DetalleCompraViewSet(viewsets.ModelViewSet):
-    queryset = DetalleCompra.objects.select_related(
-        "compra",
-        "producto"
-    ).all()
-
+class DetalleCompraViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = DetalleCompraSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = DetalleCompra.objects.select_related(
+            "compra",
+            "producto"
+        ).all()
+
+        compra = self.request.query_params.get("compra")
+
+        if compra:
+            queryset = queryset.filter(compra_id=compra)
+
+        return queryset
