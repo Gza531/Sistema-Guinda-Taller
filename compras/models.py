@@ -108,9 +108,9 @@ class ProveedorXProducto(models.Model):
 class Compra(models.Model):
 
     class EstadoCompra(models.TextChoices):
-        PENDIENTE = "pendiente", "Pendiente"
-        RECIBIDA = "recibida", "Recibida"
-        ANULADA = "anulada", "Anulada"
+        PENDIENTE = "PENDIENTE", "Pendiente"
+        RECIBIDA = "RECIBIDA", "Recibida"
+        ANULADA = "ANULADA", "Anulada"
 
     id_compra = models.AutoField(
         primary_key=True
