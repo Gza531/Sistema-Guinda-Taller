@@ -96,6 +96,7 @@ def recibir_compra(*, compra, usuario):
             cantidad=detalle.cantidad,
             usuario=usuario,
             motivo=f"Recepción de compra {compra.id_compra}",
+            compra=compra,
         )
 
     compra.estado = Compra.EstadoCompra.RECIBIDA
