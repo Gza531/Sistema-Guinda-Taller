@@ -122,6 +122,16 @@ class MetodoPago(models.Model):
     def __str__(self):
         return self.nombre
 
+    EFECTIVO = "Efectivo"
+
+    @classmethod
+    def efectivo(cls):
+        return cls.objects.get(nombre=cls.EFECTIVO)
+
+    @property
+    def es_efectivo(self):
+        return self.nombre == self.EFECTIVO
+
 
 class MovimientoCaja(models.Model):
 
