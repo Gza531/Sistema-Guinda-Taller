@@ -94,10 +94,6 @@ class SesionCajaViewSet(mixins.ListModelMixin,
             qs = qs.filter(fecha_cierre__isnull=True)
         return qs
 
-    def get_serializer_class(self):
-        if self.action == "create":
-            return AbrirCajaSerializer
-        return SesionCajaSerializer
 
     def get_serializer_class(self):
         if self.action == "create":
