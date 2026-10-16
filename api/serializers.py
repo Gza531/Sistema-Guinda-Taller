@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from catalogo.models import Producto, Marca, Categoria
+from stock.models import Stock
 
 
 class MarcaSerializer(serializers.ModelSerializer):
@@ -24,6 +25,17 @@ class ProductoSerializer(serializers.ModelSerializer):
         source="categoria.nombre",
         read_only=True
     )
+    
+    disponible = serializers.SerializerMethodField()
+
+    def get_disponible(self, obj):
+        if hasattr(obj, "disponible"):
+            return obj.disponible
+
+        return Stock.objects.filter(
+            producto=obj,
+            cantidad_actual__gt=0
+        ).exists()
 
     class Meta:
         model = Producto

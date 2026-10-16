@@ -2,6 +2,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
+from django.db.models import Exists, OuterRef, Q
+from stock.models import Stock
 
 from core.mixins import BajaLogicaMixin
 
@@ -47,13 +49,50 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Producto.objects.select_related(
         "marca",
         "categoria"
-    ).all()
+    ).annotate(
+       disponible=Exists(
+           Stock.objects.filter(
+                producto=OuterRef("pk"),
+                cantidad_actual__gt=0
+        )
+    )
+)
 
     serializer_class = ProductoSerializer
 
     permission_classes = [
         IsAuthenticatedOrReadOnly
     ]
+    def get_queryset(self):
+        qs = super().get_queryset()
+
+        marca = self.request.query_params.get("marca")
+        categoria = self.request.query_params.get("categoria")
+        precio_min = self.request.query_params.get("precio_min")
+        precio_max = self.request.query_params.get("precio_max")
+        search = self.request.query_params.get("search")
+
+        if marca:
+            qs = qs.filter(marca_id=marca)
+
+        if categoria:
+            qs = qs.filter(categoria_id=categoria)
+
+        if precio_min:
+            qs = qs.filter(precio_venta__gte=precio_min)
+
+        if precio_max:
+            qs = qs.filter(precio_venta__lte=precio_max)
+
+        if search:
+            qs = qs.filter(
+                Q(nombre__icontains=search)
+                | Q(descripcion__icontains=search)
+                | Q(marca__nombre__icontains=search)
+                | Q(categoria__nombre__icontains=search)
+            )
+
+        return qs
 
 
 class MarcaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
