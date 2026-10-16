@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import viewsets
+from clientes import services as clientes_services
 
 from core.mixins import BajaLogicaMixin
 
@@ -25,6 +26,7 @@ from .serializers import (
     ProductoSerializer,
     MarcaSerializer,
     CategoriaSerializer,
+    RegistroClienteSerializer,
 )
 
 
@@ -75,7 +77,27 @@ class CategoriaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
         IsAuthenticatedOrReadOnly
     ]
 
+class RegistroAPIView(APIView):
+    permission_classes = [AllowAny]
 
+    def post(self, request):
+        serializer = RegistroClienteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        cliente = clientes_services.registrar_cliente(
+            **serializer.validated_data
+        )
+
+        return Response(
+            {
+                "mensaje": "Usuario registrado correctamente",
+                "id_usuario": cliente.usuario.id_usuario,
+                "username": cliente.usuario.username,
+                "id_cliente": cliente.id_cliente,
+            },
+            status=status.HTTP_201_CREATED
+        )
+    
 class LoginAPIView(APIView):
     permission_classes = [AllowAny]
 
