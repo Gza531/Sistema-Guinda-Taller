@@ -6,9 +6,12 @@ from rest_framework.decorators import action
 
 from core.mixins import BajaLogicaMixin
 from . import services
-from .models import AperturaCierreCaja, Caja, MetodoPago
+from .models import AperturaCierreCaja, Caja, MetodoPago, MovimientoCaja
+from .models import AperturaCierreCaja, Caja, MetodoPago, MovimientoCaja
 from .serializers import (
-    AbrirCajaSerializer, CajaSerializer, MetodoPagoSerializer, SesionCajaSerializer, CerrarCajaSerializer, ArqueoSerializer, 
+    AbrirCajaSerializer, ArqueoSerializer, CajaSerializer, CerrarCajaSerializer,
+    MetodoPagoSerializer, MovimientoCajaSerializer, NuevoMovimientoCajaSerializer,
+    SesionCajaSerializer,
 )
 
 
@@ -137,4 +140,48 @@ class SesionCajaViewSet(mixins.ListModelMixin,
             "arqueo": ArqueoSerializer(services.resumen_sesion(sesion)).data,
         })
     
-  
+class MovimientoCajaViewSet(mixins.ListModelMixin,
+                            mixins.RetrieveModelMixin,
+                            viewsets.GenericViewSet):
+    """
+    /api/cajas/movimientos/
+      GET   historial (filtros: ?caja=, ?sesion=, ?tipo=INGRESO|EGRESO, ?metodo_pago=)
+      POST  movimiento manual: {"caja": 1, "tipo_movimiento": "EGRESO", "monto": "1500.00",
+                                "metodo_pago": 1, "concepto": "Artículos de limpieza"}
+    Los movimientos no se editan ni se borran. Los de ventas y compras los generan esos módulos.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = MovimientoCaja.objects.select_related(
+            "apertura_cierre__caja", "metodo_pago"
+        ).order_by("-fecha_hora")
+        p = self.request.query_params
+        if p.get("caja"):
+            qs = qs.filter(apertura_cierre__caja_id=p["caja"])
+        if p.get("sesion"):
+            qs = qs.filter(apertura_cierre_id=p["sesion"])
+        if p.get("tipo"):
+            qs = qs.filter(tipo_movimiento=p["tipo"].upper())
+        if p.get("metodo_pago"):
+            qs = qs.filter(metodo_pago_id=p["metodo_pago"])
+        return qs
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return NuevoMovimientoCajaSerializer
+        return MovimientoCajaSerializer
+
+    def create(self, request):
+        entrada = NuevoMovimientoCajaSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        d = entrada.validated_data
+        movimiento = services.registrar_movimiento_caja(
+            caja=d["caja"],
+            tipo_movimiento=d["tipo_movimiento"],
+            monto=d["monto"],
+            metodo_pago=d["metodo_pago"],
+            concepto=d.get("concepto"),
+        )
+        return Response(MovimientoCajaSerializer(movimiento).data, status=status.HTTP_201_CREATED)
