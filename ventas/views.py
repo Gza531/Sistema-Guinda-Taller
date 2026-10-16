@@ -1,11 +1,12 @@
-# Endpoints de ventas: venta presencial, anulación (próximamente).
+
 from rest_framework import mixins, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from . import services
 from .models import Venta
-from .serializers import NuevaVentaSerializer, VentaSerializer
+from .serializers import AnularVentaSerializer, NuevaVentaSerializer, VentaSerializer
 
 
 class VentaViewSet(mixins.ListModelMixin,
@@ -18,7 +19,8 @@ class VentaViewSet(mixins.ListModelMixin,
             {"caja": 1, "cliente": null,
              "items": [{"producto": 3, "cantidad": 2}],
              "pagos": [{"metodo_pago": 1, "monto": "5000.00"}, {"metodo_pago": 2, "monto": "3500.00"}]}
-    Las ventas no se editan ni se borran: se anulan (próximamente).
+    POST  /{id}/anular/ : {"motivo": "El cliente devolvió el producto"}
+      Las ventas no se editan ni se borran: se anulan.
     """
 
     permission_classes = [IsAuthenticated]
@@ -48,6 +50,8 @@ class VentaViewSet(mixins.ListModelMixin,
     def get_serializer_class(self):
         if self.action == "create":
             return NuevaVentaSerializer
+        if self.action == "anular":
+            return AnularVentaSerializer
         return VentaSerializer
 
     def create(self, request):
@@ -64,3 +68,16 @@ class VentaViewSet(mixins.ListModelMixin,
         )
         venta = self.get_queryset().get(pk=venta.pk)  # recarga con detalles y pagos
         return Response(VentaSerializer(venta).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
+    def anular(self, request, pk=None):
+          venta = self.get_object()
+          entrada = AnularVentaSerializer(data=request.data)
+          entrada.is_valid(raise_exception=True)
+          services.anular_venta(
+              venta=venta,
+              usuario=request.user,
+              motivo=entrada.validated_data["motivo"],
+          )
+          venta = self.get_queryset().get(pk=venta.pk)
+          return Response(VentaSerializer(venta).data)

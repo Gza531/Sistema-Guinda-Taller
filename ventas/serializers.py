@@ -66,3 +66,6 @@ class NuevaVentaSerializer(serializers.Serializer):
     items = ItemVentaSerializer(many=True, allow_empty=False)
     pagos = PagoSerializer(many=True, allow_empty=False)
     observaciones = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+class AnularVentaSerializer(serializers.Serializer):
+    motivo = serializers.CharField(max_length=250)
