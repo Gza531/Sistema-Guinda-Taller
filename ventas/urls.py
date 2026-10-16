@@ -1,8 +1,10 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from .views import VentaViewSet
+
 router = DefaultRouter()
-# Acá se van a registrar los endpoints de ventas (venta presencial, anulación).
+router.register("ventas", VentaViewSet, basename="venta")
 
 urlpatterns = [
     path("", include(router.urls)),
