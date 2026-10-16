@@ -49,13 +49,18 @@ INSTALLED_APPS = [
     # Apps propias del proyecto
     'core',
     'api',
-    'catalogo',
     'seguridad',
-    'compras',
+    'auditoria',
+    'catalogo',
     'stock',
-    'ventas',
     'promociones',
-    'cajas'
+    'proveedores',
+    'compras',
+    'clientes',
+    'pedidos',
+    'ventas',
+    'envios',
+    'cajas',
 ]
 
 AUTH_USER_MODEL = "seguridad.Usuario"

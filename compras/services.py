@@ -3,7 +3,9 @@ from decimal import Decimal
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
-from .models import Compra, DetalleCompra, ProveedorXProducto
+from proveedores.models import ProveedorXProducto
+
+from .models import Compra, DetalleCompra
 from stock.models import Stock
 from stock import services as stock_services
 

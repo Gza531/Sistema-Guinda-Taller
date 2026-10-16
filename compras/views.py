@@ -2,33 +2,14 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from core.mixins import BajaLogicaMixin
 
 from . import services
-from .models import Proveedor, ProveedorXProducto, Compra, DetalleCompra
+from .models import Compra, DetalleCompra
 from .serializers import (
-    ProveedorSerializer,
-    ProveedorXProductoSerializer,
     CompraSerializer,
     DetalleCompraSerializer,
     CrearCompraSerializer,
 )
-
-
-class ProveedorViewSet(BajaLogicaMixin,viewsets.ModelViewSet):
-    queryset = Proveedor.objects.all().order_by("razon_social")
-    serializer_class = ProveedorSerializer
-    permission_classes = [IsAuthenticated]
-
-
-class ProveedorXProductoViewSet(viewsets.ModelViewSet):
-    queryset = ProveedorXProducto.objects.select_related(
-        "proveedor",
-        "producto"
-    ).all()
-
-    serializer_class = ProveedorXProductoSerializer
-    permission_classes = [IsAuthenticated]
 
 
 class CompraViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.CreateModelMixin,viewsets.GenericViewSet):
