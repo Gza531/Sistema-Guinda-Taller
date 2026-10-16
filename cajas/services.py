@@ -106,3 +106,47 @@ def cerrar_caja(*, sesion, monto_final, observaciones=None):
     sesion.monto_final = monto_final
     sesion.save(update_fields=["fecha_cierre", "monto_final", "observaciones"])
     return sesion
+
+@transaction.atomic
+def registrar_movimiento_caja(*, caja, tipo_movimiento, monto, metodo_pago,
+                              concepto=None, venta=None, compra=None):
+    """
+    Registra un ingreso o egreso en la sesión abierta de una caja.
+    Es la función que comparten los movimientos manuales, la venta y el pago de compras.
+    RN-17: solo se registran movimientos con la caja abierta.
+    RN-18: solo con métodos de pago habilitados.
+    RN-19: un movimiento corresponde a una venta, a una compra o a ninguna, nunca a ambas.
+    RN-21: un egreso manual (sin venta ni compra) tiene que indicar el concepto.
+    """
+    sesion = sesion_abierta(caja)
+    if sesion is None:
+        raise ValidationError({"caja": f"La caja «{caja}» está cerrada. Ábrala para registrar movimientos."})
+
+    # Bloquea la sesión: así nadie la cierra mientras se registra este movimiento.
+    sesion = AperturaCierreCaja.objects.select_for_update().get(pk=sesion.pk)
+    if sesion.fecha_cierre is not None:
+        raise ValidationError({"caja": f"La caja «{caja}» se cerró recién. Vuelva a abrirla."})
+
+    if not metodo_pago.estado:
+        raise ValidationError({"metodo_pago": f"El método de pago «{metodo_pago}» está dado de baja."})
+
+    if monto <= 0:
+        raise ValidationError({"monto": "El monto debe ser mayor que cero."})
+
+    if venta is not None and compra is not None:
+        raise ValidationError({"detail": "Un movimiento no puede corresponder a una venta y a una compra a la vez."})
+
+    concepto = (concepto or "").strip() or None
+    es_manual = venta is None and compra is None
+    if es_manual and not concepto:
+        raise ValidationError({"concepto": "Indique el motivo del movimiento (por ejemplo: «Pago de luz» o «Aporte para cambio»)."})
+
+    return MovimientoCaja.objects.create(
+        apertura_cierre=sesion,
+        tipo_movimiento=tipo_movimiento,
+        monto=monto,
+        metodo_pago=metodo_pago,
+        concepto=concepto,
+        venta=venta,
+        compra=compra,
+    )

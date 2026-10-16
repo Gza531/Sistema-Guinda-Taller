@@ -1,6 +1,8 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
-from .models import AperturaCierreCaja, MetodoPago, Caja
+from .models import AperturaCierreCaja, MetodoPago, Caja, MovimientoCaja
 from .services import sesion_abierta
 
 class MetodoPagoSerializer(serializers.ModelSerializer):
@@ -35,6 +37,15 @@ class CajaSerializer(serializers.ModelSerializer):
 
     def get_abierta(self, obj):
         return sesion_abierta(obj) is not None
+
+    def validate_tipo_caja(self, valor):
+        # No se puede cambiar el tipo de una caja que ya tuvo movimientos
+        if self.instance and valor != self.instance.tipo_caja:
+            if MovimientoCaja.objects.filter(apertura_cierre__caja=self.instance).exists():
+                raise serializers.ValidationError(
+                    "No se puede cambiar el tipo de una caja que ya tuvo movimientos."
+                )
+        return valor
 
     def validate_nombre(self, valor):
         valor = valor.strip()
@@ -95,3 +106,29 @@ class ArqueoSerializer(serializers.Serializer):
     efectivo_contado = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)
     diferencia = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)
     por_metodo = TotalMetodoSerializer(many=True)
+
+class MovimientoCajaSerializer(serializers.ModelSerializer):
+    """Lectura de un movimiento de caja."""
+
+    caja = serializers.IntegerField(source="apertura_cierre.caja_id", read_only=True)
+    caja_nombre = serializers.CharField(source="apertura_cierre.caja.nombre", read_only=True)
+    metodo_pago_nombre = serializers.CharField(source="metodo_pago.nombre", read_only=True)
+
+    class Meta:
+        model = MovimientoCaja
+        fields = [
+            "id_movimiento_caja", "fecha_hora", "tipo_movimiento", "monto", "concepto",
+            "caja", "caja_nombre", "apertura_cierre", "metodo_pago", "metodo_pago_nombre",
+            "venta", "compra",
+        ]
+        read_only_fields = fields
+
+
+class NuevoMovimientoCajaSerializer(serializers.Serializer):
+    """Datos que manda el frontend para un movimiento manual (gasto, retiro, aporte)."""
+
+    caja = serializers.PrimaryKeyRelatedField(queryset=Caja.objects.all())
+    tipo_movimiento = serializers.ChoiceField(choices=MovimientoCaja.TipoMovimiento.choices)
+    monto = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0.01"))
+    metodo_pago = serializers.PrimaryKeyRelatedField(queryset=MetodoPago.objects.all())
+    concepto = serializers.CharField(max_length=255, required=False, allow_blank=True)    
