@@ -12,7 +12,7 @@ from cajas.models import Caja, MovimientoCaja
 from cajas.services import registrar_movimiento_caja, sesion_abierta
 from clientes.models import Cliente
 from stock.models import Stock
-from stock.services import registrar_salida
+from stock.services import registrar_entrada, registrar_salida
 
 from .models import DetalleVenta, Venta
 
@@ -116,4 +116,64 @@ def registrar_venta_presencial(*, usuario, caja, items, pagos, cliente=None, obs
             venta=venta,
         )
 
+    return venta
+
+@transaction.atomic
+def anular_venta(*, venta, usuario, motivo):
+    """
+    Anula una venta: la venta no se borra, queda en estado ANULADA (RIR, política general punto 5).
+    RN-13: se devuelve el stock con un movimiento de entrada y se registra el egreso en caja.
+    El dinero se devuelve por el mismo método con que se cobró, desde la misma caja,
+    que tiene que estar abierta en este momento.
+    """
+    venta = Venta.objects.select_for_update().get(pk=venta.pk)
+
+    if venta.estado == Venta.EstadoVenta.ANULADA:
+        raise ValidationError({"estado": f"La venta {venta.numero_comprobante} ya está anulada."})
+
+    motivo = (motivo or "").strip()
+    if not motivo:
+        raise ValidationError({"motivo": "Indique el motivo de la anulación."})
+
+    cobros = list(
+        MovimientoCaja.objects
+        .filter(venta=venta, tipo_movimiento=MovimientoCaja.TipoMovimiento.INGRESO)
+        .select_related("apertura_cierre__caja", "metodo_pago")
+    )
+    for cobro in cobros:
+        caja = cobro.apertura_cierre.caja
+        if sesion_abierta(caja) is None:
+            raise ValidationError({"caja": f"La caja «{caja}» está cerrada. Ábrala para registrar la devolución."})
+
+    texto = f"Anulada: {motivo}"
+    if venta.observaciones:
+        texto = f"{venta.observaciones} | {texto}"
+    if len(texto) > 500:
+        raise ValidationError({"motivo": "El motivo es demasiado largo."})
+
+    # Stock: vuelve al salón, vinculado a la venta
+    for detalle in venta.detalleventa_set.select_related("producto"):
+        registrar_entrada(
+            producto=detalle.producto,
+            ubicacion=Stock.Ubicaciones.SUCURSAL,
+            cantidad=detalle.cantidad,
+            usuario=usuario,
+            motivo=f"Anulación venta {venta.numero_comprobante}",
+            venta=venta,
+        )
+
+    # Caja: un egreso por cada cobro, por el mismo método y monto
+    for cobro in cobros:
+        registrar_movimiento_caja(
+            caja=cobro.apertura_cierre.caja,
+            tipo_movimiento=MovimientoCaja.TipoMovimiento.EGRESO,
+            monto=cobro.monto,
+            metodo_pago=cobro.metodo_pago,
+            concepto=f"Devolución por anulación de venta {venta.numero_comprobante}",
+            venta=venta,
+        )
+
+    venta.estado = Venta.EstadoVenta.ANULADA
+    venta.observaciones = texto
+    venta.save(update_fields=["estado", "observaciones"])
     return venta
