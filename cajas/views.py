@@ -7,7 +7,6 @@ from rest_framework.decorators import action
 from core.mixins import BajaLogicaMixin
 from . import services
 from .models import AperturaCierreCaja, Caja, MetodoPago, MovimientoCaja
-from .models import AperturaCierreCaja, Caja, MetodoPago, MovimientoCaja
 from .serializers import (
     AbrirCajaSerializer, ArqueoSerializer, CajaSerializer, CerrarCajaSerializer,
     MetodoPagoSerializer, MovimientoCajaSerializer, NuevoMovimientoCajaSerializer,
