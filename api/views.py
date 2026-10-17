@@ -83,8 +83,8 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
         qs = super().get_queryset()
         params = self.request.query_params
 
-        # El catálogo es público: quien no inició sesión solo ve productos activos.
-        if not self.request.user.is_authenticated:
+        # Solo el personal puede ver productos inactivos.
+        if not self.request.user.is_staff:
             qs = qs.filter(estado=True)
 
         marca = params.get("marca")
@@ -93,6 +93,15 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
         precio_max = params.get("precio_max")
         search = params.get("search")
         disponible = params.get("disponible")
+
+        if precio_min and precio_max:
+            minimo = _decimal(precio_min, "precio_min")
+            maximo = _decimal(precio_max, "precio_max")
+
+            if minimo > maximo:
+                raise ValidationError({
+                    "precio": "El precio mínimo no puede ser mayor que el precio máximo."
+                })
 
         if marca:
             qs = qs.filter(marca_id=_entero(marca, "marca"))
