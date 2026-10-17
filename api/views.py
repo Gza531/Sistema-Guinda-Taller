@@ -11,7 +11,7 @@ from rest_framework.exceptions import ValidationError
 from core.mixins import BajaLogicaMixin
 from core.permissions import es_personal
 
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, get_user_model
 
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -34,6 +34,7 @@ from .serializers import (
     RegistroClienteSerializer,
 )
 
+Usuario = get_user_model()
 
 class EstadoAPIView(APIView):
     """
@@ -169,8 +170,8 @@ class RegistroAPIView(APIView):
         serializer = RegistroClienteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        cliente = clientes_services.registrar_cliente(
-            **serializer.validated_data
+        cliente, vinculado = clientes_services.registrar_cliente(
+          **serializer.validated_data
         )
 
         return Response(
@@ -179,10 +180,11 @@ class RegistroAPIView(APIView):
                 "id_usuario": cliente.usuario.id_usuario,
                 "username": cliente.usuario.username,
                 "id_cliente": cliente.id_cliente,
+                "vinculado": vinculado,
             },
             status=status.HTTP_201_CREATED
         )
-    
+
 class LoginAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -190,42 +192,52 @@ class LoginAPIView(APIView):
         username = request.data.get("username")
         password = request.data.get("password")
 
-        usuario = authenticate(
-            request=request,
-            username=username,
-            password=password
+        # El username no distingue mayúsculas.
+        existente = (
+            Usuario.objects.filter(username__iexact=username).first()
+            if username
+            else None
         )
 
-        if usuario is not None:
+        if existente is not None:
+            username = existente.username
 
-            roles = list(
-                usuario.groups.values_list("name", flat=True)
+            usuario = authenticate(
+                request=request,
+                username=username,
+                password=password
             )
 
-            es_empleado = hasattr(usuario, "empleado")
+            if usuario is not None:
 
-            refresh = RefreshToken.for_user(usuario)
+                roles = list(
+                    usuario.groups.values_list("name", flat=True)
+                )
+
+                es_empleado = hasattr(usuario, "empleado")
+
+                refresh = RefreshToken.for_user(usuario)
+
+                return Response(
+                    {
+                        "mensaje": "Login correcto",
+                        "id_usuario": usuario.id_usuario,
+                        "username": usuario.username,
+                        "es_empleado": es_empleado,
+                        "es_superusuario": usuario.is_superuser,
+                        "roles": roles,
+                        "refresh": str(refresh),
+                        "access": str(refresh.access_token)
+                    },
+                    status=status.HTTP_200_OK
+                )
 
             return Response(
                 {
-                    "mensaje": "Login correcto",
-                    "id_usuario": usuario.id_usuario,
-                    "username": usuario.username,
-                    "es_empleado": es_empleado,
-                    "es_superusuario": usuario.is_superuser,
-                    "roles": roles,
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token)
+                    "mensaje": "Usuario o contraseña incorrectos"
                 },
-                status=status.HTTP_200_OK
+                status=status.HTTP_401_UNAUTHORIZED
             )
-
-        return Response(
-            {
-                "mensaje": "Usuario o contraseña incorrectos"
-            },
-            status=status.HTTP_401_UNAUTHORIZED
-        )
 
 
 class PerfilAPIView(APIView):

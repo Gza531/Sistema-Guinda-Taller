@@ -32,7 +32,7 @@ class ProductoSerializer(serializers.ModelSerializer):
         source="categoria.nombre",
         read_only=True
     )
-    
+
     disponible = serializers.SerializerMethodField()
 
     def get_disponible(self, obj):
@@ -54,7 +54,7 @@ class RegistroClienteSerializer(serializers.Serializer):
     nombre = serializers.CharField(max_length=60)
     apellido = serializers.CharField(max_length=60)
 
-    email = serializers.EmailField(required=False, allow_blank=True)
+    email = serializers.EmailField()
     telefono = serializers.CharField(
         max_length=20,
         required=False,
@@ -78,25 +78,29 @@ class RegistroClienteSerializer(serializers.Serializer):
     )
 
     def validate_username(self, value):
-        if Usuario.objects.filter(username=value).exists():
+        if Usuario.objects.filter(username__iexact=value).exists():
             raise serializers.ValidationError(
                 "Ya existe un usuario con ese nombre."
             )
         return value
+
+    def validate_email(self, value):
+        value = (value or "").strip().lower()
+
+        if Usuario.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError(
+                "Ya existe una cuenta con ese email."
+            )
+
+        return value
+
 
     def validate_password(self, value):
         validate_password(value)
         return value
 
     def validate_nro_documento(self, value):
-        value = value.strip() if value else None
-
-        if value and Cliente.objects.filter(nro_documento=value).exists():
-            raise serializers.ValidationError(
-                "Ya existe un cliente con ese número de documento."
-            )
-
-        return value
+      return value.strip() if value else None
 
     def validate(self, datos):
         nombre = datos.get("nombre", "")
@@ -110,4 +114,11 @@ class RegistroClienteSerializer(serializers.Serializer):
                 "«Consumidor Final» es un cliente reservado del sistema."
             )
 
+        tipo = datos.get("tipo_documento")
+        nro = datos.get("nro_documento")
+
+        if bool(tipo) != bool(nro):
+            raise serializers.ValidationError({
+                "nro_documento": "El tipo y el número de documento van juntos: completá los dos o ninguno."
+            })
         return datos
