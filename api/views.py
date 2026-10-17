@@ -195,49 +195,44 @@ class LoginAPIView(APIView):
         # El username no distingue mayúsculas.
         existente = (
             Usuario.objects.filter(username__iexact=username).first()
-            if username
-            else None
+            if username else None
         )
 
-        if existente is not None:
-            username = existente.username
+        usuario = None
 
+        if existente is not None:
             usuario = authenticate(
                 request=request,
-                username=username,
-                password=password
+                username=existente.username,
+                password=password,
             )
 
-            if usuario is not None:
-
-                roles = list(
-                    usuario.groups.values_list("name", flat=True)
-                )
-
-                es_empleado = hasattr(usuario, "empleado")
-
-                refresh = RefreshToken.for_user(usuario)
-
-                return Response(
-                    {
-                        "mensaje": "Login correcto",
-                        "id_usuario": usuario.id_usuario,
-                        "username": usuario.username,
-                        "es_empleado": es_empleado,
-                        "es_superusuario": usuario.is_superuser,
-                        "roles": roles,
-                        "refresh": str(refresh),
-                        "access": str(refresh.access_token)
-                    },
-                    status=status.HTTP_200_OK
-                )
-
+        if usuario is None:
             return Response(
-                {
-                    "mensaje": "Usuario o contraseña incorrectos"
-                },
-                status=status.HTTP_401_UNAUTHORIZED
+                {"mensaje": "Usuario o contraseña incorrectos"},
+                status=status.HTTP_401_UNAUTHORIZED,
             )
+
+        roles = list(
+            usuario.groups.values_list("name", flat=True)
+        )
+
+        es_empleado = hasattr(usuario, "empleado")
+        refresh = RefreshToken.for_user(usuario)
+
+        return Response(
+            {
+                "mensaje": "Login correcto",
+                "id_usuario": usuario.id_usuario,
+                "username": usuario.username,
+                "es_empleado": es_empleado,
+                "es_superusuario": usuario.is_superuser,
+                "roles": roles,
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class PerfilAPIView(APIView):

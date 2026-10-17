@@ -21,7 +21,7 @@ def _normalizar(texto):
     return " ".join(sin_tildes.lower().split())
 
 
-def _cliente_a_vincular(*, tipo_documento, nro_documento, apellido):
+def _cliente_a_vincular(*, tipo_documento, nro_documento, apellido, email):
     """
     Busca un cliente cargado en el salón con ese documento.
     Devuelve el cliente si se puede vincular, None si no existe,
@@ -55,6 +55,10 @@ def _cliente_a_vincular(*, tipo_documento, nro_documento, apellido):
     if (
         cliente.tipo_documento != tipo_documento
         or _normalizar(cliente.apellido) != _normalizar(apellido)
+        or (
+            cliente.email
+            and cliente.email.strip().casefold() != (email or "").strip().casefold()
+        )
     ):
         raise ValidationError({
             "nro_documento": (
@@ -86,6 +90,7 @@ def registrar_cliente(
             tipo_documento=tipo_documento,
             nro_documento=nro_documento,
             apellido=apellido,
+            email=email,
         )
 
     usuario = Usuario.objects.create_user(
