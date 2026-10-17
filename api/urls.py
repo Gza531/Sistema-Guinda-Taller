@@ -2,7 +2,15 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .views import EstadoAPIView, ProductoViewSet, LoginAPIView, PerfilAPIView, MarcaViewSet, CategoriaViewSet
+from .views import (
+    EstadoAPIView,
+    ProductoViewSet,
+    LoginAPIView,
+    RegistroAPIView,
+    PerfilAPIView,
+    MarcaViewSet,
+    CategoriaViewSet,
+)
 
 
 router = DefaultRouter()
@@ -20,6 +28,7 @@ router.register(
 
 urlpatterns = [
     path('estado/', EstadoAPIView.as_view(), name='api-estado'),
+    path("registro/", RegistroAPIView.as_view(), name="api-registro"),
     path("login/", LoginAPIView.as_view(), name="api-login"),
     path("perfil/", PerfilAPIView.as_view(), name="api-perfil"),
     
