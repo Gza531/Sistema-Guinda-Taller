@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from rest_framework.exceptions import ValidationError
 
 from core.mixins import BajaLogicaMixin
+from core.permissions import es_personal
 
 from django.contrib.auth import authenticate
 
@@ -55,11 +56,16 @@ def _entero(valor, campo):
 
 def _decimal(valor, campo):
     try:
-        return Decimal(valor)
+        numero = Decimal(valor)
     except InvalidOperation:
+        numero = None
+
+    if numero is None or not numero.is_finite():
         raise ValidationError({
             campo: "Debe ser un número, por ejemplo 15000 o 15000.50."
         })
+
+    return numero
 
 class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Producto.objects.select_related(
@@ -84,7 +90,7 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
         params = self.request.query_params
 
         # Solo el personal puede ver productos inactivos.
-        if not self.request.user.is_staff:
+        if not es_personal(self.request.user):
             qs = qs.filter(estado=True)
 
         marca = params.get("marca")
