@@ -4,6 +4,8 @@ from rest_framework import status
 from rest_framework import viewsets
 from django.db.models import Exists, OuterRef, Q
 from stock.models import Stock
+from decimal import Decimal, InvalidOperation
+from rest_framework.exceptions import ValidationError
 
 from core.mixins import BajaLogicaMixin
 
@@ -44,6 +46,20 @@ class EstadoAPIView(APIView):
             status=status.HTTP_200_OK,
         )
 
+def _entero(valor, campo):
+    try:
+        return int(valor)
+    except ValueError:
+        raise ValidationError({campo: "Debe ser un número entero."})
+
+
+def _decimal(valor, campo):
+    try:
+        return Decimal(valor)
+    except InvalidOperation:
+        raise ValidationError({
+            campo: "Debe ser un número, por ejemplo 15000 o 15000.50."
+        })
 
 class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Producto.objects.select_related(
@@ -65,24 +81,34 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     ]
     def get_queryset(self):
         qs = super().get_queryset()
+        params = self.request.query_params
 
-        marca = self.request.query_params.get("marca")
-        categoria = self.request.query_params.get("categoria")
-        precio_min = self.request.query_params.get("precio_min")
-        precio_max = self.request.query_params.get("precio_max")
-        search = self.request.query_params.get("search")
+        # El catálogo es público: quien no inició sesión solo ve productos activos.
+        if not self.request.user.is_authenticated:
+            qs = qs.filter(estado=True)
+
+        marca = params.get("marca")
+        categoria = params.get("categoria")
+        precio_min = params.get("precio_min")
+        precio_max = params.get("precio_max")
+        search = params.get("search")
+        disponible = params.get("disponible")
 
         if marca:
-            qs = qs.filter(marca_id=marca)
+            qs = qs.filter(marca_id=_entero(marca, "marca"))
 
         if categoria:
-            qs = qs.filter(categoria_id=categoria)
+            qs = qs.filter(categoria_id=_entero(categoria, "categoria"))
 
         if precio_min:
-            qs = qs.filter(precio_venta__gte=precio_min)
+            qs = qs.filter(
+                precio_venta__gte=_decimal(precio_min, "precio_min")
+            )
 
         if precio_max:
-            qs = qs.filter(precio_venta__lte=precio_max)
+            qs = qs.filter(
+                precio_venta__lte=_decimal(precio_max, "precio_max")
+            )
 
         if search:
             qs = qs.filter(
@@ -92,7 +118,12 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
                 | Q(categoria__nombre__icontains=search)
             )
 
-        return qs
+        if disponible in ("true", "1"):
+            qs = qs.filter(disponible=True)
+        elif disponible in ("false", "0"):
+            qs = qs.filter(disponible=False)
+
+        return qs.order_by("nombre")
 
 
 class MarcaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
