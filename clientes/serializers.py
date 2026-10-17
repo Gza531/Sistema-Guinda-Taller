@@ -25,4 +25,12 @@ class ClienteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "«Consumidor Final» es un cliente reservado del sistema; ya existe."
             )
+
+        # ← nuevo: tipo y número de documento van juntos
+        tipo = datos.get("tipo_documento", getattr(self.instance, "tipo_documento", None))
+        nro = datos.get("nro_documento", getattr(self.instance, "nro_documento", None))
+        if bool(tipo) != bool(nro):
+            raise serializers.ValidationError(
+                {"nro_documento": "El tipo y el número de documento van juntos: completá los dos o ninguno."}
+            )
         return datos

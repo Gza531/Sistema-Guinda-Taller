@@ -7,3 +7,11 @@ class PermisoGuinda(BasePermission):
         if request.method in SAFE_METHODS:
             return True
         return bool(request.user and request.user.is_authenticated)
+
+def es_personal(usuario):
+    """True si el usuario es un empleado del local o el superusuario."""
+    return bool(
+        usuario
+        and usuario.is_authenticated
+        and (usuario.is_superuser or hasattr(usuario, "empleado"))
+    )

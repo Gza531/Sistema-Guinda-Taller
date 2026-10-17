@@ -4,8 +4,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 
 from clientes.models import Cliente
+from stock.models import Stock
 
 Usuario = get_user_model()
+
 
 
 class MarcaSerializer(serializers.ModelSerializer):
@@ -30,6 +32,17 @@ class ProductoSerializer(serializers.ModelSerializer):
         source="categoria.nombre",
         read_only=True
     )
+    
+    disponible = serializers.SerializerMethodField()
+
+    def get_disponible(self, obj):
+        if hasattr(obj, "disponible"):
+            return obj.disponible
+
+        return Stock.objects.filter(
+            producto=obj,
+            cantidad_actual__gt=0
+        ).exists()
 
     class Meta:
         model = Producto
