@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'ventas',
     'envios',
     'cajas',
+    'dashboard',
 ]
 
 AUTH_USER_MODEL = "seguridad.Usuario"
