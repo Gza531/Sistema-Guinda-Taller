@@ -11,6 +11,7 @@ from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from .models import DetallePedido, Pedido
+from promociones.services import precio_con_descuento
 
 
 E = Pedido.EstadoPedido
@@ -75,7 +76,7 @@ def crear_pedido(*, cliente, canal, items, usuario, observaciones=None):
             pedido=pedido,
             producto=producto,
             cantidad=cantidad,
-            precio_referencia=producto.precio_venta
+            precio_referencia=precio_con_descuento(producto)
         )
         for producto, cantidad in productos.items()
     ]
