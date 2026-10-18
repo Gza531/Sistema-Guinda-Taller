@@ -5,6 +5,7 @@ from django.contrib.auth.password_validation import validate_password
 
 from clientes.models import Cliente
 from stock.models import Stock
+from promociones.services import descuento_vigente
 
 Usuario = get_user_model()
 
@@ -34,6 +35,7 @@ class ProductoSerializer(serializers.ModelSerializer):
     )
 
     disponible = serializers.SerializerMethodField()
+    precio_promocional = serializers.SerializerMethodField()
 
     def get_disponible(self, obj):
         if hasattr(obj, "disponible"):
@@ -43,6 +45,14 @@ class ProductoSerializer(serializers.ModelSerializer):
             producto=obj,
             cantidad_actual__gt=0
         ).exists()
+
+    def get_precio_promocional(self, obj):
+        promocion, monto = descuento_vigente(obj)
+
+        if promocion is None:
+            return None
+
+        return str(obj.precio_venta - monto)
 
     class Meta:
         model = Producto
