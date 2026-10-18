@@ -1,9 +1,9 @@
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
-
-from core.permissions import es_personal
+from django.utils.dateparse import parse_date
+from rest_framework.exceptions import ValidationError
+from core.permissions import EsPersonal
 
 from . import services
 from .models import Pedido
@@ -14,13 +14,27 @@ from .serializers import (
     CancelarPedidoSerializer,
 )
 
+def _entero(valor, campo):
+    try:
+        return int(valor)
+    except ValueError:
+        raise ValidationError({
+            campo: "Debe ser un número entero."
+        })
 
-class EsPersonal(BasePermission):
-    """Permite el acceso solamente a empleados y superusuarios."""
 
-    def has_permission(self, request, view):
-        return es_personal(request.user)
+def _fecha(valor, campo):
+    try:
+        fecha = parse_date(valor)
+    except ValueError:
+        fecha = None
 
+    if fecha is None:
+        raise ValidationError({
+            campo: "Use el formato AAAA-MM-DD, por ejemplo 2026-10-18."
+        })
+
+    return fecha
 
 class PedidoViewSet(
     mixins.ListModelMixin,
@@ -37,7 +51,7 @@ class PedidoViewSet(
     POST /api/pedidos/pedidos/{id}/cancelar/
     """
 
-    permission_classes = [IsAuthenticated, EsPersonal]
+    permission_classes = [EsPersonal]
     serializer_class = PedidoSerializer
 
     def get_queryset(self):
@@ -60,13 +74,13 @@ class PedidoViewSet(
             qs = qs.filter(estado=p["estado"].upper())
 
         if p.get("cliente"):
-            qs = qs.filter(cliente_id=p["cliente"])
+            qs = qs.filter(cliente_id=_entero(p["cliente"], "cliente"))
 
         if p.get("desde"):
-            qs = qs.filter(fecha__date__gte=p["desde"])
+            qs = qs.filter(fecha__date__gte=_fecha(p["desde"], "desde"))
 
         if p.get("hasta"):
-            qs = qs.filter(fecha__date__lte=p["hasta"])
+            qs = qs.filter(fecha__date__lte=_fecha(p["hasta"], "hasta"))
 
         return qs
 

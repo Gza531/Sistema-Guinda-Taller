@@ -24,7 +24,12 @@ TRANSICIONES = {
 }
 
 # Estados desde los que se permite cancelar.
-CANCELABLES = {E.PENDIENTE, E.RESERVADO}
+CANCELABLES = {
+    E.PENDIENTE,
+    E.RESERVADO,
+    E.EN_ESPERA_STOCK,
+    E.LISTO,
+}
 
 @transaction.atomic
 def crear_pedido(*, cliente, canal, items, usuario, observaciones=None):
@@ -125,7 +130,7 @@ def cancelar_pedido(*, pedido, motivo):
             "estado": (
                 f"Un pedido {pedido.get_estado_display()} "
                 "ya no se puede cancelar. Solo se cancelan "
-                "los pedidos Pendientes o Reservados."
+                "los pedidos Pendientes, Reservados, En espera de stock o Listos."
             )
         })
 
