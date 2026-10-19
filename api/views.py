@@ -9,7 +9,7 @@ from decimal import Decimal, InvalidOperation
 from rest_framework.exceptions import ValidationError
 
 from core.mixins import BajaLogicaMixin
-from core.permissions import es_personal
+from core.permissions import LecturaPublicaEscrituraPersonal, es_personal
 
 from django.contrib.auth import authenticate, get_user_model
 
@@ -18,7 +18,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
-    IsAuthenticatedOrReadOnly,
+
 )
 
 from catalogo.models import (
@@ -86,7 +86,7 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     serializer_class = ProductoSerializer
 
     permission_classes = [
-        IsAuthenticatedOrReadOnly
+        LecturaPublicaEscrituraPersonal
     ]
     def get_queryset(self):
         qs = super().get_queryset()
@@ -146,21 +146,22 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
 
 class MarcaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Marca.objects.all()
-
+    queryset = Marca.objects.order_by("nombre")
     serializer_class = MarcaSerializer
 
     permission_classes = [
-        IsAuthenticatedOrReadOnly
+        LecturaPublicaEscrituraPersonal
     ]
 
 
 class CategoriaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Categoria.objects.all()
+    queryset = Categoria.objects.order_by("nombre")
 
     serializer_class = CategoriaSerializer
 
     permission_classes = [
-        IsAuthenticatedOrReadOnly
+        LecturaPublicaEscrituraPersonal
     ]
 
 class RegistroAPIView(APIView):
