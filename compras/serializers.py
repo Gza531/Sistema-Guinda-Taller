@@ -28,7 +28,7 @@ class CompraSerializer(serializers.ModelSerializer):
             return None
 
         return {
-            "fecha": mov.fecha_hora,
+            "fecha": serializers.DateTimeField().to_representation(mov.fecha_hora),
             "monto": str(mov.monto),
             "metodo_pago": mov.metodo_pago.nombre,
             "caja": mov.apertura_cierre.caja.nombre,

@@ -22,6 +22,8 @@ def pago_de(compra):
         .select_related("metodo_pago", "apertura_cierre__caja")
         .first()
     )
+
+
 @transaction.atomic
 def pagar_compra(*, compra, caja, metodo_pago):
     compra = Compra.objects.select_for_update().get(pk=compra.pk)
