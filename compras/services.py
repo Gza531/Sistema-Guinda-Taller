@@ -8,6 +8,49 @@ from proveedores.models import ProveedorXProducto
 from .models import Compra, DetalleCompra
 from stock.models import Stock
 from stock import services as stock_services
+from cajas.models import MovimientoCaja
+from cajas.services import registrar_movimiento_caja
+
+def pago_de(compra):
+    """El egreso de caja que pagó la compra, o None si todavía no se pagó."""
+    return (
+        MovimientoCaja.objects
+        .filter(
+            compra=compra,
+            tipo_movimiento=MovimientoCaja.TipoMovimiento.EGRESO
+        )
+        .select_related("metodo_pago", "apertura_cierre__caja")
+        .first()
+    )
+
+
+@transaction.atomic
+def pagar_compra(*, compra, caja, metodo_pago):
+    compra = Compra.objects.select_for_update().get(pk=compra.pk)
+
+    if compra.estado == Compra.EstadoCompra.ANULADA:
+        raise ValidationError({
+            "estado": "No se puede pagar una compra anulada."
+        })
+
+    if pago_de(compra) is not None:
+        raise ValidationError({
+            "estado": "La compra ya está pagada."
+        })
+
+    concepto = f"Pago de compra {compra.id_compra}"
+
+    if compra.numero_factura:
+        concepto += f" (factura {compra.numero_factura})"
+
+    return registrar_movimiento_caja(
+        tipo_movimiento=MovimientoCaja.TipoMovimiento.EGRESO,
+        monto=compra.total,
+        caja=caja,
+        metodo_pago=metodo_pago,
+        concepto=concepto,
+        compra=compra
+    )
 
 @transaction.atomic
 def crear_compra(
@@ -105,6 +148,7 @@ def recibir_compra(*, compra, usuario):
     compra.save(update_fields=["estado"])
 
     return compra
+
 @transaction.atomic
 def anular_compra(*, compra):
     compra = Compra.objects.select_for_update().get(
@@ -119,6 +163,11 @@ def anular_compra(*, compra):
     if compra.estado == Compra.EstadoCompra.ANULADA:
         raise ValidationError({
             "estado": "La compra ya está anulada."
+        })
+
+    if pago_de(compra) is not None:
+        raise ValidationError({
+            "estado": "La compra ya está pagada: no se puede anular."
         })
 
     compra.estado = Compra.EstadoCompra.ANULADA
