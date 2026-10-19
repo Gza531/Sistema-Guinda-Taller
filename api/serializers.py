@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from catalogo.models import Producto, Marca, Categoria
+from catalogo.models import Producto, Marca, Categoria, ImagenProducto
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 
@@ -22,6 +22,12 @@ class CategoriaSerializer(serializers.ModelSerializer):
         model = Categoria
         fields = "__all__"
 
+class ImagenProductoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ImagenProducto
+        fields = ["id_imagen_producto", "imagen", "orden", "es_principal"]
+        read_only_fields = fields
+
 
 class ProductoSerializer(serializers.ModelSerializer):
     marca_nombre = serializers.CharField(
@@ -36,6 +42,10 @@ class ProductoSerializer(serializers.ModelSerializer):
 
     disponible = serializers.SerializerMethodField()
     precio_promocional = serializers.SerializerMethodField()
+    
+    # "imagen" es la URL de la foto principal (la usan las tarjetas del catálogo)
+    imagen = serializers.SerializerMethodField()
+    imagenes = ImagenProductoSerializer(many=True, read_only=True)
 
     def get_disponible(self, obj):
         if hasattr(obj, "disponible"):
@@ -45,6 +55,18 @@ class ProductoSerializer(serializers.ModelSerializer):
             producto=obj,
             cantidad_actual__gt=0
         ).exists()
+
+    def get_imagen(self, obj):
+        imagenes = list(obj.imagenes.all())
+        if not imagenes:
+            return None
+
+        # Si por algún motivo ninguna está marcada, se usa la primera
+        principal = next((i for i in imagenes if i.es_principal), imagenes[0])
+
+        request = self.context.get("request")
+        url = principal.imagen.url
+        return request.build_absolute_uri(url) if request else url
 
     def get_precio_promocional(self, obj):
         promocion, monto = descuento_vigente(obj)
@@ -132,3 +154,18 @@ class RegistroClienteSerializer(serializers.Serializer):
                 "nro_documento": "El tipo y el número de documento van juntos: completá los dos o ninguno."
             })
         return datos
+
+
+
+class SubirImagenesSerializer(serializers.Serializer):
+    imagenes = serializers.ListField(
+        child=serializers.ImageField(),
+        allow_empty=False
+    )
+
+
+class OrdenImagenesSerializer(serializers.Serializer):
+    orden = serializers.ListField(
+        child=serializers.IntegerField(),
+        allow_empty=False
+    )

@@ -6,7 +6,15 @@ from clientes import services as clientes_services
 from django.db.models import Exists, OuterRef, Q
 from stock.models import Stock
 from decimal import Decimal, InvalidOperation
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.decorators import action
+from catalogo import services as catalogo_services
+from catalogo.models import (
+    ImagenProducto,
+    Producto,
+    Marca,
+    Categoria,
+)
 
 from core.mixins import BajaLogicaMixin
 from core.permissions import LecturaPublicaEscrituraPersonal, es_personal
@@ -32,6 +40,9 @@ from .serializers import (
     MarcaSerializer,
     CategoriaSerializer,
     RegistroClienteSerializer,
+    ImagenProductoSerializer,
+    SubirImagenesSerializer,
+    OrdenImagenesSerializer,
 )
 
 Usuario = get_user_model()
@@ -74,6 +85,8 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Producto.objects.select_related(
         "marca",
         "categoria"
+    ).prefetch_related(
+        "imagenes"
     ).annotate(
        disponible=Exists(
            Stock.objects.filter(
@@ -142,6 +155,64 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
             qs = qs.filter(disponible=False)
 
         return qs.order_by("nombre")
+    
+    # ---------- Fotos del producto ----------
+
+    def _imagenes(self, producto):
+        # Se consulta de nuevo: producto.imagenes.all() traería la lista vieja
+        # que quedó en memoria por el prefetch_related del queryset.
+        imagenes = ImagenProducto.objects.filter(producto=producto)
+        return Response(ImagenProductoSerializer(
+            imagenes, many=True, context={"request": self.request}
+        ).data)
+
+    def _imagen_del_producto(self, producto, id_imagen):
+        imagen = ImagenProducto.objects.filter(pk=id_imagen, producto=producto).first()
+        if imagen is None:
+            raise NotFound("Esa foto no existe o no es de este producto.")
+        return imagen
+
+    @action(detail=True, methods=["post"])
+    def imagenes(self, request, pk=None):
+        """Sube una o varias fotos (multipart, campo «imagenes»)."""
+        producto = self.get_object()
+        entrada = SubirImagenesSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+
+        catalogo_services.agregar_imagenes(
+            producto=producto,
+            archivos=entrada.validated_data["imagenes"],
+        )
+        return self._imagenes(producto)
+
+    @action(detail=True, methods=["post"], url_path="imagenes/orden")
+    def ordenar_imagenes(self, request, pk=None):
+        """Recibe {"orden": [id, id, ...]} con todas las fotos en el orden nuevo."""
+        producto = self.get_object()
+        entrada = OrdenImagenesSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+
+        catalogo_services.ordenar_imagenes(
+            producto=producto,
+            ids=entrada.validated_data["orden"],
+        )
+        return self._imagenes(producto)
+
+    @action(detail=True, methods=["post"], url_path=r"imagenes/(?P<id_imagen>\d+)/principal")
+    def imagen_principal(self, request, pk=None, id_imagen=None):
+        producto = self.get_object()
+        imagen = self._imagen_del_producto(producto, id_imagen)
+
+        catalogo_services.marcar_principal(imagen=imagen)
+        return self._imagenes(producto)
+
+    @action(detail=True, methods=["delete"], url_path=r"imagenes/(?P<id_imagen>\d+)")
+    def eliminar_imagen(self, request, pk=None, id_imagen=None):
+        producto = self.get_object()
+        imagen = self._imagen_del_producto(producto, id_imagen)
+
+        catalogo_services.eliminar_imagen(imagen=imagen)
+        return self._imagenes(producto)
 
 
 class MarcaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
