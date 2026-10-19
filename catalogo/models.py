@@ -126,11 +126,6 @@ class Producto(models.Model):
         default=True
     )
 
-    imagen = models.CharField(
-        max_length=255,
-        null=True,
-        blank=True
-    )
 
     marca = models.ForeignKey(
         Marca,
@@ -149,3 +144,50 @@ class Producto(models.Model):
 
     def __str__(self):
         return self.nombre
+
+
+
+class ImagenProducto(models.Model):
+
+    id_imagen_producto = models.AutoField(
+        primary_key=True
+    )
+
+    producto = models.ForeignKey(
+        Producto,
+        on_delete=models.CASCADE,
+        db_column="id_producto",
+        related_name="imagenes"
+    )
+
+    imagen = models.ImageField(
+        upload_to="productos/%Y/%m/"
+    )
+
+    orden = models.PositiveSmallIntegerField(
+        default=0
+    )
+
+    es_principal = models.BooleanField(
+        default=False
+    )
+
+    fecha_alta = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        db_table = "imagenes_productos"
+        ordering = ["orden", "id_imagen_producto"]
+
+        constraints = [
+            # A lo sumo una imagen principal por producto
+            models.UniqueConstraint(
+                fields=["producto"],
+                condition=models.Q(es_principal=True),
+                name="una_imagen_principal_por_producto"
+            )
+        ]
+
+    def __str__(self):
+        return f"Imagen {self.orden} de {self.producto}"
