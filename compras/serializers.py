@@ -6,7 +6,8 @@ from catalogo.models import Producto
 from proveedores.models import Proveedor
 
 from .models import Compra, DetalleCompra
-
+from . import services
+from cajas.models import Caja, MetodoPago
 
 class CompraSerializer(serializers.ModelSerializer):
     proveedor_nombre = serializers.CharField(
@@ -18,6 +19,20 @@ class CompraSerializer(serializers.ModelSerializer):
         source="usuario.username",
         read_only=True
     )
+    pago = serializers.SerializerMethodField()
+
+    def get_pago(self, obj):
+        mov = services.pago_de(obj)
+
+        if mov is None:
+            return None
+
+        return {
+            "fecha": mov.fecha_hora,
+            "monto": str(mov.monto),
+            "metodo_pago": mov.metodo_pago.nombre,
+            "caja": mov.apertura_cierre.caja.nombre,
+        }
 
     class Meta:
         model = Compra
@@ -32,6 +47,7 @@ class CompraSerializer(serializers.ModelSerializer):
             "proveedor_nombre",
             "usuario",
             "usuario_username",
+            "pago",
         ]
 
 
@@ -87,4 +103,13 @@ class CrearCompraSerializer(serializers.Serializer):
     detalles = DetalleNuevaCompraSerializer(
         many=True,
         allow_empty=False
+    )
+
+class PagarCompraSerializer(serializers.Serializer):
+    caja = serializers.PrimaryKeyRelatedField(
+        queryset=Caja.objects.filter(estado=True)
+    )
+
+    metodo_pago = serializers.PrimaryKeyRelatedField(
+        queryset=MetodoPago.objects.all()
     )

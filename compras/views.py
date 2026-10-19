@@ -1,16 +1,17 @@
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from core.permissions import EsPersonal
 from rest_framework.response import Response
 
 from . import services
 from .models import Compra, DetalleCompra
+
 from .serializers import (
     CompraSerializer,
     DetalleCompraSerializer,
     CrearCompraSerializer,
+    PagarCompraSerializer,
 )
-
 
 class CompraViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.CreateModelMixin,viewsets.GenericViewSet):
     queryset = Compra.objects.select_related(
@@ -19,7 +20,7 @@ class CompraViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
     ).all().order_by("-fecha")
 
     serializer_class = CompraSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [EsPersonal]
     def create(self, request, *args, **kwargs):
         entrada = CrearCompraSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
@@ -55,6 +56,7 @@ class CompraViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
             serializer.data,
             status=status.HTTP_200_OK
         )
+
     @action(detail=True, methods=["post"], url_path="anular")
     def anular(self, request, pk=None):
         compra = self.get_object()
@@ -70,10 +72,28 @@ class CompraViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
             status=status.HTTP_200_OK
         )
 
+    @action(detail=True, methods=["post"], url_path="pagar")
+    def pagar(self, request, pk=None):
+        compra = self.get_object()
+
+        entrada = PagarCompraSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+
+        services.pagar_compra(
+            compra=compra,
+            caja=entrada.validated_data["caja"],
+            metodo_pago=entrada.validated_data["metodo_pago"],
+        )
+
+        compra.refresh_from_db()
+
+        return Response(CompraSerializer(compra).data)
+
+
 
 class DetalleCompraViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = DetalleCompraSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [EsPersonal]
 
     def get_queryset(self):
         queryset = DetalleCompra.objects.select_related(
