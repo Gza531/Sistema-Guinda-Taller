@@ -16,6 +16,7 @@ from stock.services import registrar_entrada, registrar_salida
 
 from .models import DetalleVenta, Venta
 
+from promociones.services import descuento_vigente
 
 def _stock_en(producto, ubicacion):
     fila = Stock.objects.filter(producto=producto, ubicacion=ubicacion).first()
@@ -64,10 +65,20 @@ def registrar_venta_presencial(*, usuario, caja, items, pagos, cliente=None, obs
     if faltantes:
         raise ValidationError({"items": faltantes})
 
-    total = sum(
-        (producto.precio_venta * cantidad for producto, cantidad in cantidades.items()),
-        Decimal("0.00"),
-    )
+    # Promociones: cada producto lleva la promoción vigente con mayor descuento.
+    # El precio de lista y el descuento quedan copiados en el detalle (RN-06).
+    lineas = []
+    for producto, cantidad in cantidades.items():
+        _, descuento_unitario = descuento_vigente(producto)
+        lineas.append({
+            "producto": producto,
+            "cantidad": cantidad,
+            "precio_unitario": producto.precio_venta,
+            "descuento_aplicado": descuento_unitario * cantidad,
+            "subtotal": (producto.precio_venta - descuento_unitario) * cantidad,
+        })
+
+    total = sum((linea["subtotal"] for linea in lineas), Decimal("0.00"))
     pagado = sum((p["monto"] for p in pagos), Decimal("0.00"))
     if pagado != total:
         raise ValidationError({
@@ -86,20 +97,13 @@ def registrar_venta_presencial(*, usuario, caja, items, pagos, cliente=None, obs
     venta.numero_comprobante = f"V-{venta.pk:08d}"
     venta.save(update_fields=["numero_comprobante"])
 
-    for producto, cantidad in cantidades.items():
-        DetalleVenta.objects.create(
-            venta=venta,
-            producto=producto,
-            cantidad=cantidad,
-            precio_unitario=producto.precio_venta,
-            descuento_aplicado=Decimal("0.00"),
-            subtotal=producto.precio_venta * cantidad,
-        )
+    for linea in lineas:
+        DetalleVenta.objects.create(venta=venta, **linea)
         # ---- 3. Stock: sale del salón, vinculado a la venta ----
         registrar_salida(
-            producto=producto,
+            producto=linea["producto"],
             ubicacion=salon,
-            cantidad=cantidad,
+            cantidad=linea["cantidad"],
             usuario=usuario,
             motivo=f"Venta {venta.numero_comprobante}",
             venta=venta,
