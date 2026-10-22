@@ -52,6 +52,8 @@ class EstadoAPIView(APIView):
     Endpoint de ejemplo para confirmar que la API REST esta funcionando.
     """
 
+    permission_classes = [AllowAny]
+
     def get(self, request):
         return Response(
             {

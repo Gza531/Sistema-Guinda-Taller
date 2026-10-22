@@ -1,6 +1,6 @@
 from django.db.models import Q
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
+from core.permissions import EsPersonal
 
 from rest_framework.exceptions import PermissionDenied
 
@@ -20,7 +20,7 @@ class ClienteViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
 
     queryset = Cliente.objects.order_by("apellido", "nombre")
     serializer_class = ClienteSerializer
-    permission_classes = [IsAuthenticated]  # datos personales: ni siquiera se leen sin sesión
+    permission_classes = [EsPersonal]  # datos personales: solo el personal
 
     def get_queryset(self):
         qs = super().get_queryset()  # ya trae el filtro ?estado= del mixin

@@ -1,7 +1,7 @@
 
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from core.permissions import EsPersonal
 from rest_framework.response import Response
 
 from . import services
@@ -23,7 +23,7 @@ class VentaViewSet(mixins.ListModelMixin,
       Las ventas no se editan ni se borran: se anulan.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [EsPersonal]
 
     def get_queryset(self):
         qs = (
