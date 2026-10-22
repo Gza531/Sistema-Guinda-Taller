@@ -40,7 +40,12 @@ def crear_envio(
     empresa_transporte=None,
     codigo_seguimiento=None
 ):
-    venta = Venta.objects.select_related("cliente").get(pk=venta.pk)
+    venta = Venta.objects.select_for_update().select_related("cliente").get(pk=venta.pk)
+
+    if Envio.objects.filter(venta=venta).exclude(estado=E.DEVUELTO).exists():
+        raise ValidationError({
+            "venta": f"La venta {venta.numero_comprobante} ya tiene un envío."
+        })
 
     if venta.tipo != Venta.TipoVenta.ONLINE:
         raise ValidationError({
