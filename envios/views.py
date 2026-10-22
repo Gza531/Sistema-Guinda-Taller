@@ -1,6 +1,7 @@
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
 from core.permissions import EsPersonal
 
@@ -38,7 +39,14 @@ class EnvioViewSet(
             queryset = queryset.filter(estado=estado.upper())
 
         if venta:
-            queryset = queryset.filter(venta_id=venta)
+            try:
+                venta_id = int(venta)
+            except ValueError:
+                raise ValidationError({
+                    "venta": "Debe ser un número entero."
+                })
+
+            queryset = queryset.filter(venta_id=venta_id)
 
         if empresa:
             queryset = queryset.filter(

@@ -47,7 +47,7 @@ def crear_envio(
             "venta": "Solo las ventas online generan envíos. Una venta presencial se entrega en el local."
         })
 
-    if venta.estado == "ANULADA":
+    if venta.estado == Venta.EstadoVenta.ANULADA:
         raise ValidationError({
             "venta": f"La venta {venta.numero_comprobante} está anulada."
         })
@@ -153,10 +153,10 @@ def cambiar_estado(
 
         campos.extend(["empresa_transporte", "fecha_despacho"])
 
-        if codigo_seguimiento is not None:
-            envio.codigo_seguimiento = (
-                codigo_seguimiento.strip() or None
-            )
+        codigo = (codigo_seguimiento or "").strip()
+
+        if codigo:
+            envio.codigo_seguimiento = codigo
             campos.append("codigo_seguimiento")
 
     envio.estado = estado
