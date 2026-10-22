@@ -24,6 +24,7 @@ urlpatterns = [
     path('api/compras/', include('compras.urls')),
     path('api/pedidos/', include('pedidos.urls')),
     path('api/promociones/', include('promociones.urls')),
+    path("api/envios/", include("envios.urls")),
     path('api/dashboard/', include('dashboard.urls')),
     path('api/', include('api.urls')),
     path('api-auth/', include('rest_framework.urls')),
