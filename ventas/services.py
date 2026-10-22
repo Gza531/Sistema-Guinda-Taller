@@ -11,7 +11,7 @@ from rest_framework.exceptions import ValidationError
 from cajas.models import Caja, MovimientoCaja
 from cajas.services import caja_online, registrar_movimiento_caja, sesion_abierta, sesion_online
 from clientes.models import Cliente
-from envios.services import crear_envio
+from envios.services import cancelar_envios_de_venta, crear_envio
 from promociones.services import descuento_vigente
 from stock.models import Stock
 from stock.services import registrar_entrada, registrar_salida
@@ -287,6 +287,9 @@ def anular_venta(*, venta, usuario, motivo):
         elif sesion_abierta(caja) is None:
             raise ValidationError({"caja": f"La caja «{caja}» está cerrada. Ábrala para registrar la devolución."})
 
+    # Envíos: si alguno ya salió, se rechaza; si no, los activos pasan a Cancelado
+    cancelar_envios_de_venta(venta=venta)
+    
     texto = f"Anulada: {motivo}"
     if venta.observaciones:
         texto = f"{venta.observaciones} | {texto}"
