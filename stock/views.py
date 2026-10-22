@@ -1,6 +1,6 @@
 from django.db.models import F
 from rest_framework import mixins, status, viewsets
-from rest_framework.permissions import IsAuthenticated
+from core.permissions import EsPersonal
 from rest_framework.response import Response
 
 from . import services
@@ -10,7 +10,7 @@ from .serializers import MovimientoStockSerializer, NuevoMovimientoSerializer, S
 
 class StockViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = StockSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [EsPersonal]
 
     def get_queryset(self):
         stock = Stock.objects.select_related("producto").order_by("producto__nombre", "ubicacion")
@@ -31,7 +31,7 @@ class StockViewSet(viewsets.ReadOnlyModelViewSet):
 class MovimientoStockViewSet(mixins.ListModelMixin,
                              mixins.RetrieveModelMixin,
                              viewsets.GenericViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [EsPersonal]
 
     def get_queryset(self):
         return MovimientoStock.objects.select_related("stock__producto", "usuario").order_by("-fecha")

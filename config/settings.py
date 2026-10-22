@@ -162,7 +162,7 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
        ),
        "DEFAULT_PERMISSION_CLASSES": (
-           "core.permissions.PermisoGuinda",
+           "core.permissions.EsPersonal",
        ),
        "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
        "PAGE_SIZE": 10,

@@ -1,6 +1,6 @@
 from rest_framework import mixins, status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from rest_framework.permissions import IsAuthenticated
+from core.permissions import EsPersonal
 from rest_framework.response import Response
 from rest_framework.decorators import action
 
@@ -25,6 +25,7 @@ class MetodoPagoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     """
 
     serializer_class = MetodoPagoSerializer
+    permission_classes = [EsPersonal]
 
     def get_queryset(self):
         qs = MetodoPago.objects.order_by("nombre")
@@ -60,7 +61,7 @@ class CajaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
 
     queryset = Caja.objects.order_by("nombre")
     serializer_class = CajaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [EsPersonal]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -85,7 +86,7 @@ class SesionCajaViewSet(mixins.ListModelMixin,
     Las sesiones no se editan ni se borran. El cierre va a ser /sesiones/{id}/cerrar/.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [EsPersonal]
 
     def get_queryset(self):
         qs = AperturaCierreCaja.objects.select_related("caja", "usuario").order_by("-fecha_apertura")
@@ -150,7 +151,7 @@ class MovimientoCajaViewSet(mixins.ListModelMixin,
     Los movimientos no se editan ni se borran. Los de ventas y compras los generan esos módulos.
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [EsPersonal]
 
     def get_queryset(self):
         qs = MovimientoCaja.objects.select_related(
