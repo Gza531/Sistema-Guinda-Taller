@@ -42,6 +42,46 @@ def abrir_caja(*, caja, usuario, monto_inicial, observaciones=None):
         observaciones=observaciones,
     )
 
+def caja_online():
+    """Devuelve la caja online habilitada (la que registra los cobros de la tienda web)."""
+    caja = (
+        Caja.objects
+        .filter(tipo_caja=Caja.TipoCaja.ONLINE, estado=True)
+        .order_by("id_caja")
+        .first()
+    )
+    if caja is None:
+        raise ValidationError({"caja": "No hay una caja online habilitada. Créela desde Cajas."})
+    return caja
+
+
+@transaction.atomic
+def sesion_online(*, caja, usuario):
+    """
+    Devuelve la sesión abierta de la caja online. Si no hay, la abre el sistema
+    con monto inicial 0: los cobros online llegan a cualquier hora y no hay nadie
+    para abrirla (excepción a RN-17 solo para la caja online).
+    El corte lo hace la Encargada al cerrarla, conciliando con el reporte de cobros;
+    el siguiente cobro abre una sesión nueva.
+    """
+    # Bloquea la caja: si llegan dos cobros a la vez, el segundo espera
+    # y encuentra la sesión que abrió el primero (RN-15: una sola sesión abierta).
+    caja = Caja.objects.select_for_update().get(pk=caja.pk)
+
+    if caja.tipo_caja != Caja.TipoCaja.ONLINE:
+        raise ValidationError({"caja": f"«{caja}» no es una caja online."})
+
+    sesion = sesion_abierta(caja)
+    if sesion is not None:
+        return sesion
+
+    return abrir_caja(
+        caja=caja,
+        usuario=usuario,
+        monto_inicial=Decimal("0.00"),
+        observaciones="Apertura automática del sistema",
+    )
+
 
 def resumen_sesion(sesion):
     """
