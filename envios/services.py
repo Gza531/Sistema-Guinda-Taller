@@ -30,6 +30,9 @@ TRANSICIONES = {
 # Solo se pueden corregir datos antes de despachar.
 EDITABLES = {E.PENDIENTE, E.PREPARADO}
 
+# El paquete ya salió del local (o llegó): la venta no se puede anular.
+EN_CAMINO = {E.DESPACHADO, E.EN_TRANSITO, E.DEMORADO, E.ENTREGADO}
+
 
 @transaction.atomic
 def crear_envio(
@@ -183,3 +186,36 @@ def eliminar_envio(*, envio):
         })
 
     envio.delete()
+
+
+
+@transaction.atomic
+def cancelar_envios_de_venta(*, venta):
+    """
+    Se llama al anular una venta.
+    Solo se puede anular si ningún envío salió del local: los Pendientes o Preparados
+    pasan a Cancelado y los Devueltos quedan como están (el paquete ya volvió).
+    Cancelado es un estado final: no se llega desde /estado/, solo anulando la venta.
+    """
+    envios = list(Envio.objects.select_for_update().filter(venta=venta))
+
+    for envio in envios:
+        if envio.estado == E.ENTREGADO:
+            raise ValidationError({
+                "envio": (
+                    f"El envío {envio.id_envio} ya fue entregado: "
+                    "no corresponde anular la venta sino gestionar una devolución."
+                )
+            })
+        if envio.estado in EN_CAMINO:
+            raise ValidationError({
+                "envio": (
+                    f"El envío {envio.id_envio} está {envio.get_estado_display()}: "
+                    "la venta se puede anular cuando el paquete vuelva (Devuelto)."
+                )
+            })
+
+    for envio in envios:
+        if envio.estado in EDITABLES:
+            envio.estado = E.CANCELADO
+            envio.save(update_fields=["estado"])

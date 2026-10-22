@@ -12,6 +12,7 @@ class Envio(models.Model):
         ENTREGADO = "ENTREGADO", "Entregado"
         DEMORADO = "DEMORADO", "Demorado"
         DEVUELTO = "DEVUELTO", "Devuelto"
+        CANCELADO = "CANCELADO", "Cancelado"
 
     id_envio = models.AutoField(
         primary_key=True
