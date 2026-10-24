@@ -33,8 +33,19 @@ class CajaAbiertaSerializer(serializers.Serializer):
     abierta_por = serializers.CharField(allow_null=True)
     efectivo_esperado = serializers.DecimalField(max_digits=14, decimal_places=2)
 
+class CantidadPorEstadoSerializer(serializers.Serializer):
+    estado = serializers.CharField()
+    nombre = serializers.CharField()
+    cantidad = serializers.IntegerField()
+
+
+class ResumenPorEstadoSerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    por_estado = CantidadPorEstadoSerializer(many=True)
 
 class DashboardSerializer(serializers.Serializer):
     ventas_hoy = VentasHoySerializer()
     stock_bajo_minimo = StockBajoMinimoSerializer(many=True)
     cajas_abiertas = CajaAbiertaSerializer(many=True)
+    pedidos_pendientes = ResumenPorEstadoSerializer()
+    envios_en_curso = ResumenPorEstadoSerializer()
