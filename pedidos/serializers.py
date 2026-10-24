@@ -6,6 +6,8 @@ from catalogo.models import Producto
 from clientes.models import Cliente
 
 from .models import DetallePedido, Pedido
+from ventas.serializers import PagoSerializer
+from ventas.services import Entrega
 
 
 class DetallePedidoSerializer(serializers.ModelSerializer):
@@ -117,4 +119,28 @@ class CambiarEstadoSerializer(serializers.Serializer):
 class CancelarPedidoSerializer(serializers.Serializer):
     motivo = serializers.CharField(
         max_length=250
+    )
+
+class EntregarPedidoSerializer(serializers.Serializer):
+    pagos = PagoSerializer(
+        many=True,
+        allow_empty=False
+    )
+
+    entrega = serializers.ChoiceField(
+        choices=Entrega.choices
+    )
+
+    direccion_entrega = serializers.CharField(
+        max_length=200,
+        required=False,
+        allow_blank=True
+    )
+
+    costo_envio = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal("0"),
+        required=False,
+        allow_null=True
     )

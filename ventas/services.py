@@ -73,6 +73,25 @@ def _verificar_stock(cantidades, ubicacion):
         raise ValidationError({"items": faltantes})
 
 
+def _lineas_con_precios(cantidades, precios):
+    """
+    Pedidos: el precio ya quedó fijado al crear el pedido,
+    incluyendo las promociones de ese momento.
+
+    Se cobra ese precio, sin volver a aplicar promociones.
+    """
+    return [
+        {
+            "producto": producto,
+            "cantidad": cantidad,
+            "precio_unitario": precios[producto.pk],
+            "descuento_aplicado": CERO,
+            "subtotal": precios[producto.pk] * cantidad,
+        }
+        for producto, cantidad in cantidades.items()
+    ]
+
+
 def _armar_lineas(cantidades):
     """
     Promociones: cada producto lleva la promoción vigente con mayor descuento.
@@ -100,9 +119,10 @@ def _validar_pagos(pagos, total):
         })
 
 
-def _crear_venta(*, tipo, cliente, usuario, total, observaciones):
+def _crear_venta(*, tipo, cliente, usuario, total, observaciones, pedido=None):
     venta = Venta.objects.create(
         tipo=tipo,
+        pedido=pedido,
         cliente=cliente,
         usuario=usuario,
         total=total,
@@ -191,7 +211,8 @@ def registrar_venta_presencial(*, usuario, caja, items, pagos, cliente=None, obs
 
 @transaction.atomic
 def registrar_venta_online(*, usuario, cliente, items, pagos, entrega,
-                           direccion_entrega=None, costo_envio=None, observaciones=None):
+                           direccion_entrega=None, costo_envio=None,
+                           observaciones=None, precios=None, pedido=None):
     """
     Registra una venta online (pedido por WhatsApp, Instagram o la web), en una sola transacción.
 
@@ -228,7 +249,7 @@ def registrar_venta_online(*, usuario, cliente, items, pagos, entrega,
 
     cantidades = _agrupar(items)
     _verificar_stock(cantidades, DEPOSITO)
-    lineas = _armar_lineas(cantidades)
+    lineas = _lineas_con_precios(cantidades, precios) if precios is not None else _armar_lineas(cantidades)
     total = sum((linea["subtotal"] for linea in lineas), CERO) + costo_envio
     _validar_pagos(pagos, total)
 
@@ -241,6 +262,7 @@ def registrar_venta_online(*, usuario, cliente, items, pagos, entrega,
         usuario=usuario,
         total=total,
         observaciones=observaciones,
+        pedido=pedido,
     )
     _registrar_detalles(venta=venta, lineas=lineas, ubicacion=DEPOSITO, usuario=usuario)
 

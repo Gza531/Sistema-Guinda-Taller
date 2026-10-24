@@ -12,6 +12,7 @@ from .serializers import (
     NuevoPedidoSerializer,
     CambiarEstadoSerializer,
     CancelarPedidoSerializer,
+    EntregarPedidoSerializer,
 )
 
 def _entero(valor, campo):
@@ -94,6 +95,9 @@ class PedidoViewSet(
         if self.action == "cancelar":
             return CancelarPedidoSerializer
 
+        if self.action == "entregar":
+            return EntregarPedidoSerializer
+
         return PedidoSerializer
 
     def create(self, request):
@@ -143,6 +147,28 @@ class PedidoViewSet(
         services.cancelar_pedido(
             pedido=pedido,
             motivo=entrada.validated_data["motivo"],
+        )
+
+        pedido = self.get_queryset().get(pk=pedido.pk)
+
+        return Response(PedidoSerializer(pedido).data)
+
+    @action(detail=True, methods=["post"])
+    def entregar(self, request, pk=None):
+        pedido = self.get_object()
+
+        entrada = EntregarPedidoSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+
+        d = entrada.validated_data
+
+        services.entregar_pedido(
+            pedido=pedido,
+            usuario=request.user,
+            pagos=d["pagos"],
+            entrega=d["entrega"],
+            direccion_entrega=d.get("direccion_entrega") or None,
+            costo_envio=d.get("costo_envio"),
         )
 
         pedido = self.get_queryset().get(pk=pedido.pk)
