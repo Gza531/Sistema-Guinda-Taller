@@ -1,5 +1,5 @@
 from rest_framework import viewsets
-from core.permissions import EsPersonal
+from core.permissions import PermisoPorAccion
 
 from core.mixins import BajaLogicaMixin
 
@@ -10,7 +10,15 @@ from .serializers import ProveedorSerializer, ProveedorXProductoSerializer
 class ProveedorViewSet(BajaLogicaMixin,viewsets.ModelViewSet):
     queryset = Proveedor.objects.all().order_by("razon_social")
     serializer_class = ProveedorSerializer
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {
+        "list": "ver_proveedores",
+        "retrieve": "ver_proveedores",
+        "create": "gestionar_proveedores",
+        "update": "gestionar_proveedores",
+        "partial_update": "gestionar_proveedores",
+        "destroy": "gestionar_proveedores",
+    }
 
 
 class ProveedorXProductoViewSet(viewsets.ModelViewSet):
@@ -20,4 +28,12 @@ class ProveedorXProductoViewSet(viewsets.ModelViewSet):
     ).order_by("proveedor__razon_social", "producto__nombre")
 
     serializer_class = ProveedorXProductoSerializer
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {
+        "list": "ver_proveedores",
+        "retrieve": "ver_proveedores",
+        "create": "gestionar_proveedores",
+        "update": "gestionar_proveedores",
+        "partial_update": "gestionar_proveedores",
+        "destroy": "gestionar_proveedores",
+    }

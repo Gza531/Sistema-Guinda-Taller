@@ -4,7 +4,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from core.mixins import BajaLogicaMixin
-from core.permissions import EsPersonal
+from core.permissions import PermisoPorAccion
 
 from . import services
 from .models import Promocion
@@ -18,7 +18,16 @@ class PromocionViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     El listado de promociones vigentes será público.
     """
 
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {
+        "list": "ver_promociones",
+        "retrieve": "ver_promociones",
+        "create": "gestionar_promociones",
+        "update": "gestionar_promociones",
+        "partial_update": "gestionar_promociones",
+        "destroy": "gestionar_promociones",
+        # "vigentes" es público: lo resuelve get_permissions (AllowAny)
+    }
 
     queryset = (
         Promocion.objects

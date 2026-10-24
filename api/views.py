@@ -17,7 +17,7 @@ from catalogo.models import (
 )
 
 from core.mixins import BajaLogicaMixin
-from core.permissions import LecturaPublicaEscrituraPersonal, es_personal
+from core.permissions import LecturaPublicaEscrituraPorRol, es_personal
 
 from django.contrib.auth import authenticate, get_user_model
 
@@ -100,9 +100,8 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
 
     serializer_class = ProductoSerializer
 
-    permission_classes = [
-        LecturaPublicaEscrituraPersonal
-    ]
+    permission_classes = [LecturaPublicaEscrituraPorRol]
+    permiso_escritura = "gestionar_catalogo"
     def get_queryset(self):
         qs = super().get_queryset()
         params = self.request.query_params
@@ -234,18 +233,16 @@ class MarcaViewSet(SoloActivasParaPublicoMixin, BajaLogicaMixin, viewsets.ModelV
     queryset = Marca.objects.order_by("nombre")
     serializer_class = MarcaSerializer
 
-    permission_classes = [
-        LecturaPublicaEscrituraPersonal
-    ]
+    permission_classes = [LecturaPublicaEscrituraPorRol]
+    permiso_escritura = "gestionar_catalogo"
 
 
 class CategoriaViewSet(SoloActivasParaPublicoMixin, BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Categoria.objects.order_by("nombre")
     serializer_class = CategoriaSerializer
 
-    permission_classes = [
-        LecturaPublicaEscrituraPersonal
-    ]
+    permission_classes = [LecturaPublicaEscrituraPorRol]
+    permiso_escritura = "gestionar_catalogo"
     
 class RegistroAPIView(APIView):
     permission_classes = [AllowAny]
