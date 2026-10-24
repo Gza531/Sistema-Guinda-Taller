@@ -27,15 +27,6 @@ class EsPersonal(BasePermission):
         return es_personal(request.user)
 
 
-class LecturaPublicaEscrituraPersonal(BasePermission):
-    """Cualquiera puede consultar; solo el personal puede crear, editar o dar de baja."""
-    message = "Solo el personal del local puede modificar el catálogo."
-
-    def has_permission(self, request, view):
-        if request.method in SAFE_METHODS:
-            return True
-        return es_personal(request.user)
-
 # ============================================================
 # Roles y permisos por acción (matriz aprobada por el equipo)
 # ============================================================
@@ -145,5 +136,24 @@ class PermisoPorAccion(BasePermission):
 
         if not puede(request.user, permiso):
             self.message = "Su rol no permite realizar esta acción."
+            return False
+        return True
+
+
+class LecturaPublicaEscrituraPorRol(BasePermission):
+    """
+    Para el catálogo: cualquiera consulta (GET), aun sin sesión.
+    Para crear, editar, dar de baja o cargar imágenes hace falta el permiso
+    que declara la vista: permiso_escritura = "gestionar_catalogo".
+    """
+
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        if not es_personal(request.user):
+            self.message = "Solo el personal del local puede modificar el catálogo."
+            return False
+        if not puede(request.user, view.permiso_escritura):
+            self.message = "Su rol no permite modificar el catálogo."
             return False
         return True

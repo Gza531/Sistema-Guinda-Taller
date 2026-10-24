@@ -1,6 +1,6 @@
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from core.permissions import EsPersonal
+from core.permissions import PermisoPorAccion
 from rest_framework.response import Response
 
 from . import services
@@ -20,7 +20,15 @@ class CompraViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
     ).all().order_by("-fecha")
 
     serializer_class = CompraSerializer
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {
+        "list": "ver_compras",
+        "retrieve": "ver_compras",
+        "create": "gestionar_compras",
+        "pagar": "gestionar_compras",
+        "anular": "gestionar_compras",
+        "recibir": "recibir_compra",
+    }
     def create(self, request, *args, **kwargs):
         entrada = CrearCompraSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
@@ -93,7 +101,8 @@ class CompraViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin,mixins.Creat
 
 class DetalleCompraViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = DetalleCompraSerializer
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {"list": "ver_compras", "retrieve": "ver_compras"}
 
     def get_queryset(self):
         queryset = DetalleCompra.objects.select_related(
