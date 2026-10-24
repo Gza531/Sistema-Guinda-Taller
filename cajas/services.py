@@ -83,6 +83,19 @@ def sesion_online(*, caja, usuario):
     )
 
 
+def efectivo_disponible(sesion):
+    """Efectivo que debería haber en la caja: monto inicial + ingresos en efectivo - egresos en efectivo."""
+    Tipo = MovimientoCaja.TipoMovimiento
+    cero = Decimal("0.00")
+    totales = MovimientoCaja.objects.filter(
+        apertura_cierre=sesion,
+        metodo_pago__nombre=MetodoPago.EFECTIVO,
+    ).aggregate(
+        ingresos=Sum("monto", filter=Q(tipo_movimiento=Tipo.INGRESO), default=cero),
+        egresos=Sum("monto", filter=Q(tipo_movimiento=Tipo.EGRESO), default=cero),
+    )
+    return sesion.monto_inicial + totales["ingresos"] - totales["egresos"]
+
 def resumen_sesion(sesion):
     """
     Calcula el arqueo de una sesión de caja (RN-22).
@@ -172,6 +185,16 @@ def registrar_movimiento_caja(*, caja, tipo_movimiento, monto, metodo_pago,
 
     if monto <= 0:
         raise ValidationError({"monto": "El monto debe ser mayor que cero."})
+
+    
+    # Un egreso en efectivo no puede superar el efectivo que hay en la caja.
+    # La sesión ya está bloqueada: dos egresos simultáneos no pueden pasarse del total.
+    if tipo_movimiento == MovimientoCaja.TipoMovimiento.EGRESO and metodo_pago.es_efectivo:
+        disponible = efectivo_disponible(sesion)
+        if monto > disponible:
+            raise ValidationError({
+                "monto": f"En la caja «{caja}» hay ${disponible} en efectivo y el egreso es de ${monto}."
+            })
 
     if venta is not None and compra is not None:
         raise ValidationError({"detail": "Un movimiento no puede corresponder a una venta y a una compra a la vez."})
