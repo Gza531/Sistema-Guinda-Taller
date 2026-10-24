@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils.dateparse import parse_date
 from rest_framework.exceptions import ValidationError
-from core.permissions import EsPersonal
+from core.permissions import PermisoPorAccion
 
 from . import services
 from .models import Pedido
@@ -51,7 +51,15 @@ class PedidoViewSet(
     POST /api/pedidos/pedidos/{id}/cancelar/
     """
 
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {
+        "list": "ver_pedidos",
+        "retrieve": "ver_pedidos",
+        "create": "crear_pedido",
+        "estado": "gestionar_pedido",
+        "cancelar": "gestionar_pedido",
+        "entregar": "gestionar_pedido",  # lo agrega Emi con pedido -> venta
+    }
     serializer_class = PedidoSerializer
 
     def get_queryset(self):

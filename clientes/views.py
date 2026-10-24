@@ -1,6 +1,6 @@
 from django.db.models import Q
 from rest_framework import viewsets
-from core.permissions import EsPersonal
+from core.permissions import PermisoPorAccion
 
 from rest_framework.exceptions import PermissionDenied
 
@@ -20,7 +20,15 @@ class ClienteViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
 
     queryset = Cliente.objects.order_by("apellido", "nombre")
     serializer_class = ClienteSerializer
-    permission_classes = [EsPersonal]  # datos personales: solo el personal
+    permission_classes = [PermisoPorAccion]  # datos personales: solo el personal
+    permisos = {
+        "list": "ver_clientes",
+        "retrieve": "ver_clientes",
+        "create": "editar_clientes",
+        "update": "editar_clientes",
+        "partial_update": "editar_clientes",
+        "destroy": "baja_cliente",  # baja lógica
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()  # ya trae el filtro ?estado= del mixin
