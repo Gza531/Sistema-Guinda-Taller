@@ -217,8 +217,20 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
         return self._imagenes(producto)
 
 
-class MarcaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
-    queryset = Marca.objects.all()
+class SoloActivasParaPublicoMixin:
+    """
+    El público (visitantes y clientes) solo ve los registros activos;
+    el personal ve todos, para poder reactivarlos.
+    """
+
+    def get_queryset(self):
+        qs = super().get_queryset()  # ya trae el filtro ?estado= del BajaLogicaMixin
+        if not es_personal(self.request.user):
+            qs = qs.filter(estado=True)
+        return qs
+
+
+class MarcaViewSet(SoloActivasParaPublicoMixin, BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Marca.objects.order_by("nombre")
     serializer_class = MarcaSerializer
 
@@ -227,16 +239,14 @@ class MarcaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     ]
 
 
-class CategoriaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
-    queryset = Categoria.objects.all()
+class CategoriaViewSet(SoloActivasParaPublicoMixin, BajaLogicaMixin, viewsets.ModelViewSet):
     queryset = Categoria.objects.order_by("nombre")
-
     serializer_class = CategoriaSerializer
 
     permission_classes = [
         LecturaPublicaEscrituraPersonal
     ]
-
+    
 class RegistroAPIView(APIView):
     permission_classes = [AllowAny]
 

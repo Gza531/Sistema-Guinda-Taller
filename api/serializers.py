@@ -11,16 +11,44 @@ Usuario = get_user_model()
 
 
 
-class MarcaSerializer(serializers.ModelSerializer):
+class NombreUnicoMixin:
+    """
+    El nombre no puede repetirse aunque cambien mayúsculas o espacios:
+    «Dior», «dior» y « DIOR » son la misma marca.
+    """
+    etiqueta = "un registro"  # cada serializer dice "una marca", "una categoría"...
+
+    def validate_nombre(self, valor):
+        nombre = " ".join(valor.split())  # saca espacios de más, también en el medio
+        modelo = self.Meta.model
+        repetido = modelo.objects.filter(nombre__iexact=nombre)
+        if self.instance is not None:
+            repetido = repetido.exclude(pk=self.instance.pk)
+        existente = repetido.first()
+        if existente:
+            raise serializers.ValidationError(
+                f"Ya existe {self.etiqueta} llamada «{existente.nombre}»."
+            )
+        return nombre
+
+
+class MarcaSerializer(NombreUnicoMixin, serializers.ModelSerializer):
+    etiqueta = "una marca"
+
     class Meta:
         model = Marca
         fields = "__all__"
+        # La unicidad la controla validate_nombre (sin distinguir mayúsculas)
+        extra_kwargs = {"nombre": {"validators": []}}
 
 
-class CategoriaSerializer(serializers.ModelSerializer):
+class CategoriaSerializer(NombreUnicoMixin, serializers.ModelSerializer):
+    etiqueta = "una categoría"
+
     class Meta:
         model = Categoria
         fields = "__all__"
+        extra_kwargs = {"nombre": {"validators": []}}
 
 class ImagenProductoSerializer(serializers.ModelSerializer):
     class Meta:
