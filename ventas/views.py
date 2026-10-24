@@ -1,6 +1,6 @@
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from core.permissions import EsPersonal
+from core.permissions import PermisoPorAccion
 from rest_framework.response import Response
 
 from . import services
@@ -33,7 +33,14 @@ class VentaViewSet(mixins.ListModelMixin,
       Las ventas no se editan ni se borran: se anulan.
     """
 
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {
+        "list": "ver_ventas",
+        "retrieve": "ver_ventas",
+        "create": "registrar_venta_presencial",
+        "online": "registrar_venta_online",
+        "anular": "anular_venta",
+    }
 
     def get_queryset(self):
         qs = (

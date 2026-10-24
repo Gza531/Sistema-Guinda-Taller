@@ -53,16 +53,14 @@ class PedidoViewSet(
     """
 
     permission_classes = [PermisoPorAccion]
-
     permisos = {
         "list": "ver_pedidos",
         "retrieve": "ver_pedidos",
         "create": "crear_pedido",
         "estado": "gestionar_pedido",
         "cancelar": "gestionar_pedido",
-        "entregar": "gestionar_pedido",
+        "entregar": "gestionar_pedido",  # lo agrega Emi con pedido -> venta
     }
-
     serializer_class = PedidoSerializer
 
     def get_queryset(self):

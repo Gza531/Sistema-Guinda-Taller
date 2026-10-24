@@ -1,6 +1,6 @@
 from rest_framework import mixins, status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from core.permissions import EsPersonal
+from core.permissions import PermisoPorAccion
 from rest_framework.response import Response
 from rest_framework.decorators import action
 
@@ -25,7 +25,15 @@ class MetodoPagoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     """
 
     serializer_class = MetodoPagoSerializer
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {
+        "list": "ver_caja",
+        "retrieve": "ver_caja",
+        "create": "administrar_cajas",
+        "update": "administrar_cajas",
+        "partial_update": "administrar_cajas",
+        "destroy": "administrar_cajas",
+    }
 
     def get_queryset(self):
         qs = MetodoPago.objects.order_by("nombre")
@@ -61,7 +69,15 @@ class CajaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
 
     queryset = Caja.objects.order_by("nombre")
     serializer_class = CajaSerializer
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {
+        "list": "ver_caja",
+        "retrieve": "ver_caja",
+        "create": "administrar_cajas",
+        "update": "administrar_cajas",
+        "partial_update": "administrar_cajas",
+        "destroy": "administrar_cajas",
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -86,7 +102,14 @@ class SesionCajaViewSet(mixins.ListModelMixin,
     Las sesiones no se editan ni se borran. El cierre va a ser /sesiones/{id}/cerrar/.
     """
 
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {
+        "list": "ver_caja",
+        "retrieve": "ver_caja",
+        "resumen": "ver_caja",
+        "create": "abrir_caja",
+        "cerrar": "cerrar_caja",
+    }
 
     def get_queryset(self):
         qs = AperturaCierreCaja.objects.select_related("caja", "usuario").order_by("-fecha_apertura")
@@ -151,7 +174,12 @@ class MovimientoCajaViewSet(mixins.ListModelMixin,
     Los movimientos no se editan ni se borran. Los de ventas y compras los generan esos módulos.
     """
 
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {
+        "list": "ver_caja",
+        "retrieve": "ver_caja",
+        "create": "movimiento_manual",  # los cobros de ventas y pagos de compras no pasan por acá
+    }
 
     def get_queryset(self):
         qs = MovimientoCaja.objects.select_related(
