@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
-from core.permissions import EsPersonal
+from core.permissions import PermisoPorAccion
 
 from . import services
 from .models import Envio
@@ -24,7 +24,15 @@ class EnvioViewSet(
     API para administrar los envíos de ventas online.
     """
 
-    permission_classes = [EsPersonal]
+    permission_classes = [PermisoPorAccion]
+    permisos = {
+        "list": "ver_envios",
+        "retrieve": "ver_envios",
+        "create": "gestionar_envios",
+        "partial_update": "gestionar_envios",
+        "destroy": "gestionar_envios",
+        "estado": "gestionar_envios",
+    }
 
     def get_queryset(self):
         queryset = Envio.objects.select_related(
