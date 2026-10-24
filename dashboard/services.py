@@ -4,7 +4,9 @@ from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
 from cajas.models import AperturaCierreCaja
-from cajas.services import resumen_sesion
+from cajas.services import efectivo_disponible
+from envios.models import Envio
+from pedidos.models import Pedido
 from stock.models import Stock
 from ventas.models import Venta
 
@@ -89,10 +91,42 @@ def cajas_abiertas():
             "id_sesion": sesion.id_apertura_cierre,
             "abierta_desde": sesion.fecha_apertura,
             "abierta_por": sesion.usuario.username if sesion.usuario else None,
-            "efectivo_esperado": resumen_sesion(sesion)["efectivo_esperado"],
+            "efectivo_esperado": efectivo_disponible(sesion),
         }
         for sesion in sesiones
     ]
+
+# Estados que todavía requieren trabajo del personal
+EP = Pedido.EstadoPedido
+EE = Envio.EstadoEnvio
+PEDIDOS_ACTIVOS = [EP.PENDIENTE, EP.RESERVADO, EP.EN_ESPERA_STOCK, EP.LISTO]
+ENVIOS_EN_CURSO = [EE.PENDIENTE, EE.PREPARADO, EE.DESPACHADO, EE.EN_TRANSITO, EE.DEMORADO]
+
+
+def _por_estado(queryset, estados):
+    """Cuenta los registros de cada estado en una sola consulta; los estados sin registros dan 0."""
+    conteos = dict(
+        queryset.filter(estado__in=estados)
+        .order_by()
+        .values_list("estado")
+        .annotate(cantidad=Count("pk"))
+    )
+    return [
+        {"estado": estado.value, "nombre": estado.label, "cantidad": conteos.get(estado.value, 0)}
+        for estado in estados
+    ]
+
+
+def pedidos_pendientes():
+    """Pedidos que todavía no se entregaron ni se cancelaron, por estado."""
+    por_estado = _por_estado(Pedido.objects.all(), PEDIDOS_ACTIVOS)
+    return {"total": sum(fila["cantidad"] for fila in por_estado), "por_estado": por_estado}
+
+
+def envios_en_curso():
+    """Envíos que todavía no llegaron a un estado final (Entregado, Devuelto o Cancelado), por estado."""
+    por_estado = _por_estado(Envio.objects.all(), ENVIOS_EN_CURSO)
+    return {"total": sum(fila["cantidad"] for fila in por_estado), "por_estado": por_estado}
 
 
 def resumen():
@@ -101,4 +135,6 @@ def resumen():
         "ventas_hoy": ventas_del_dia(),
         "stock_bajo_minimo": stock_bajo_minimo(),
         "cajas_abiertas": cajas_abiertas(),
+        "pedidos_pendientes": pedidos_pendientes(),
+        "envios_en_curso": envios_en_curso(),
     }
