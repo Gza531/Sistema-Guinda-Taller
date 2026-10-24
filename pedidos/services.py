@@ -12,6 +12,7 @@ from rest_framework.exceptions import ValidationError
 
 from .models import DetallePedido, Pedido
 from promociones.services import precio_con_descuento
+from ventas.services import registrar_venta_online
 
 
 E = Pedido.EstadoPedido
@@ -158,5 +159,76 @@ def cancelar_pedido(*, pedido, motivo):
     pedido.observaciones = observaciones
 
     pedido.save(update_fields=["estado", "observaciones"])
+
+    return pedido
+
+
+@transaction.atomic
+def entregar_pedido(
+    *,
+    pedido,
+    usuario,
+    pagos,
+    entrega,
+    direccion_entrega=None,
+    costo_envio=None
+):
+    """
+    Concreta un pedido creando una venta online asociada.
+
+    - Solo se puede entregar un pedido Listo.
+    - Cada pedido puede generar como máximo una venta.
+    - Se respetan los precios originales del pedido.
+    - El stock sale del Depósito.
+    - Si algo falla, se deshace toda la operación.
+    """
+
+    pedido = Pedido.objects.select_for_update().get(pk=pedido.pk)
+
+    if pedido.estado != E.LISTO:
+        raise ValidationError({
+            "estado": (
+                f"Solo se entrega un pedido Listo. "
+                f"Este está {pedido.get_estado_display()}."
+            )
+        })
+
+    if pedido.venta_set.exists():
+        raise ValidationError({
+            "estado": "Este pedido ya tiene una venta."
+        })
+
+    detalles = list(
+        pedido.detallepedido_set.select_related("producto")
+    )
+
+    items = [
+        {
+            "producto": d.producto,
+            "cantidad": d.cantidad
+        }
+        for d in detalles
+    ]
+
+    precios = {
+        d.producto_id: d.precio_referencia
+        for d in detalles
+    }
+
+    registrar_venta_online(
+        usuario=usuario,
+        cliente=pedido.cliente,
+        items=items,
+        pagos=pagos,
+        entrega=entrega,
+        direccion_entrega=direccion_entrega,
+        costo_envio=costo_envio,
+        observaciones=f"Pedido {pedido.pk}",
+        precios=precios,
+        pedido=pedido,
+    )
+
+    pedido.estado = E.ENTREGADO
+    pedido.save(update_fields=["estado"])
 
     return pedido
