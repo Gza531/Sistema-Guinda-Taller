@@ -7,6 +7,7 @@ import requests
 from mercadopago.config import RequestOptions
 from django.core.exceptions import ImproperlyConfigured
 
+from mercadopago.errors.exceptions import MercadoPagoError
 
 class ErrorMercadoPago(Exception):
     """
@@ -40,6 +41,10 @@ def _llamar(operacion, funcion, *args, **kwargs):
     except requests.RequestException as e:
         raise ErrorMercadoPago(
             f"No se pudo conectar con Mercado Pago al {operacion}."
+        ) from e
+    except MercadoPagoError as e:
+        raise ErrorMercadoPago(
+            f"Error del SDK de Mercado Pago al {operacion}: {e}"
         ) from e
 
     codigo = resultado.get("status")
