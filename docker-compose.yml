@@ -43,6 +43,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-proyecto_pass}
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
+      # Mercado Pago
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
+      MP_COSTO_ENVIO: ${MP_COSTO_ENVIO:-0}
+      FRONT_URL: ${FRONT_URL:-}
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-}
     depends_on:
       - db
 
