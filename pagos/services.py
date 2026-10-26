@@ -3,8 +3,17 @@ import os
 from decimal import Decimal
 
 import mercadopago
+import requests
+from mercadopago.config import RequestOptions
 from django.core.exceptions import ImproperlyConfigured
 
+
+class ErrorMercadoPago(Exception):
+    """
+    Error al comunicarse con Mercado Pago
+    o al procesar una respuesta de su API.
+    """
+    pass
 
 def _sdk():
     """
@@ -21,16 +30,27 @@ def _sdk():
     return mercadopago.SDK(token)
 
 
-def _verificar_respuesta(resultado, operacion):
+def _llamar(operacion, funcion, *args, **kwargs):
     """
-    Comprueba que Mercado Pago haya respondido correctamente.
+    Ejecuta una operación de Mercado Pago y controla
+    los errores de conexión y las respuestas de la API.
     """
+    try:
+        resultado = funcion(*args, **kwargs)
+    except requests.RequestException as e:
+        raise ErrorMercadoPago(
+            f"No se pudo conectar con Mercado Pago al {operacion}."
+        ) from e
+
     codigo = resultado.get("status")
     datos = resultado.get("response")
 
     if codigo not in (200, 201) or not isinstance(datos, dict):
-        raise RuntimeError(
-            f"Error de Mercado Pago al {operacion}. HTTP: {codigo}"
+        detalle = datos.get("message", "") if isinstance(datos, dict) else ""
+
+        raise ErrorMercadoPago(
+            f"Error de Mercado Pago al {operacion} "
+            f"(HTTP {codigo}): {detalle}"
         )
 
     return datos
@@ -70,8 +90,11 @@ def crear_preferencia(*, cliente, lineas, costo_envio, metadata):
         "metadata": metadata,
     }
 
-    resultado = _sdk().preference().create(preferencia)
-    datos = _verificar_respuesta(resultado, "crear preferencia")
+    datos = _llamar(
+        "crear preferencia",
+        _sdk().preference().create,
+        preferencia,
+    )
 
     return {
         "id": datos["id"],
@@ -85,18 +108,29 @@ def obtener_pago(payment_id):
 
     Gonza utilizará esta función desde el webhook.
     """
-    resultado = _sdk().payment().get(payment_id)
-
-    return _verificar_respuesta(resultado, "consultar pago")
+    return _llamar(
+        "consultar pago",
+        _sdk().payment().get,
+        payment_id,
+    )
 
 
 def reembolsar(payment_id):
     """
     Solicita la devolución total de un pago.
 
-    Gonza utilizará esta función cuando corresponda
-    devolver el dinero de una venta.
+    Utiliza una clave de idempotencia para evitar
+    solicitudes de devolución duplicadas.
     """
-    resultado = _sdk().refund().create(payment_id)
+    opciones = RequestOptions(
+        custom_headers={
+            "x-idempotency-key": f"reembolso-{payment_id}"
+        }
+    )
 
-    return _verificar_respuesta(resultado, "reembolsar pago")
+    return _llamar(
+        "reembolsar pago",
+        _sdk().refund().create,
+        payment_id,
+        request_options=opciones,
+    )
