@@ -5,3 +5,5 @@ python-decouple>=3.8
 django-cors-headers
 djangorestframework-simplejwt
 Pillow>=10.0
+mercadopago==3.6.0
+requests>=2.31,<3
