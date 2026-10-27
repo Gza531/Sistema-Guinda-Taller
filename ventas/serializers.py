@@ -51,7 +51,7 @@ class VentaSerializer(serializers.ModelSerializer):
         fields = [
             "id_venta", "numero_comprobante", "fecha", "tipo", "estado", "total",
             "cliente", "cliente_nombre", "usuario", "usuario_username",
-            "observaciones", "pedido", "detalles", "pagos", "envios",
+            "observaciones", "pedido","mp_payment_id", "detalles", "pagos", "envios",
         ]
         read_only_fields = fields
 

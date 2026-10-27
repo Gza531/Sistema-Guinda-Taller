@@ -64,6 +64,16 @@ class Venta(models.Model):
         blank=True
     )
 
+    # ID del pago en Mercado Pago (solo ventas cobradas desde la tienda web).
+    # Único: si Mercado Pago avisa dos veces el mismo pago, no se registran dos ventas.
+    # NULL en las demás ventas (PostgreSQL permite muchos NULL en un campo único).
+    mp_payment_id = models.CharField(
+        max_length=30,
+        unique=True,
+        null=True,
+        blank=True
+    )
+
     numero_comprobante = models.CharField(
         max_length=20,
         unique=True
