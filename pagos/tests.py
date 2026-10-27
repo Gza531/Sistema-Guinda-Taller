@@ -25,6 +25,7 @@ from catalogo.models import Marca, Categoria, Producto
 from clientes.models import Cliente
 from stock.models import Stock
 
+from seguridad.models import Empleado
 
 class PreferenciaMercadoPagoTests(SimpleTestCase):
 
@@ -451,3 +452,173 @@ class CheckoutStockTests(TestCase):
 
         self.stock.refresh_from_db()
         self.assertEqual(self.stock.cantidad_actual, 3)
+
+    def test_metadata_para_el_webhook(self):
+        """La metadata respeta el contrato que lee el webhook (G3)."""
+
+        with patch(
+            "pagos.checkout_views.crear_preferencia",
+            return_value={
+                "id": "p",
+                "init_point": "https://example.test/pago",
+            },
+        ) as mercado_pago:
+            self.comprar(2)
+
+        self.assertEqual(
+            mercado_pago.call_args.kwargs["metadata"],
+            {
+                "cliente": self.cliente.pk,
+                "items": [
+                    {
+                        "producto": self.producto.pk,
+                        "cantidad": 2,
+                    }
+                ],
+                "entrega": "RETIRO",
+                "direccion_entrega": None,
+                "costo_envio": "0.00",
+            },
+        )
+
+    def test_error_mercado_pago_devuelve_503(self):
+        """Una falla de Mercado Pago no debe afectar el stock."""
+
+        with patch(
+            "pagos.checkout_views.crear_preferencia",
+            side_effect=ErrorMercadoPago(
+                "Error simulado de Mercado Pago"
+            ),
+        ) as mercado_pago:
+
+            respuesta = self.comprar(2)
+
+        self.assertEqual(respuesta.status_code, 503)
+        self.assertIn("detail", respuesta.data)
+        mercado_pago.assert_called_once()
+
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.cantidad_actual, 3)
+
+    def test_envio_sin_direccion_devuelve_400(self):
+        """Un envío sin dirección no puede iniciar un pago."""
+
+        with patch(
+            "pagos.checkout_views.crear_preferencia"
+        ) as mercado_pago:
+
+            respuesta = self.cliente_api.post(
+                self.url,
+                {
+                    "items": [
+                        {
+                            "producto": self.producto.pk,
+                            "cantidad": 1,
+                        }
+                    ],
+                    "entrega": "ENVIO",
+                },
+                format="json",
+            )
+
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("direccion_entrega", respuesta.data)
+        mercado_pago.assert_not_called()
+
+    def test_envio_con_direccion_y_costo(self):
+        """El envío suma su costo y usa la dirección del cliente."""
+
+        self.cliente.direccion = "Belgrano 123"
+        self.cliente.save()
+
+        with patch.dict(
+            os.environ,
+            {"MP_COSTO_ENVIO": "3500"},
+        ):
+            with patch(
+                "pagos.checkout_views.crear_preferencia",
+                return_value={
+                    "id": "pref_envio_e4",
+                    "init_point": "https://example.test/pago",
+                },
+            ) as mercado_pago:
+
+                respuesta = self.cliente_api.post(
+                    self.url,
+                    {
+                        "items": [
+                            {
+                                "producto": self.producto.pk,
+                                "cantidad": 1,
+                            }
+                        ],
+                        "entrega": "ENVIO",
+                    },
+                    format="json",
+                )
+
+        self.assertEqual(respuesta.status_code, 201)
+        self.assertEqual(
+            Decimal(respuesta.data["total"]),
+            Decimal("13500.00"),
+        )
+
+        mercado_pago.assert_called_once()
+        argumentos = mercado_pago.call_args.kwargs
+
+        self.assertEqual(
+            argumentos["costo_envio"],
+            Decimal("3500"),
+        )
+        self.assertEqual(
+            argumentos["metadata"]["direccion_entrega"],
+            "Belgrano 123",
+        )
+        self.assertEqual(
+            argumentos["metadata"]["costo_envio"],
+            "3500",
+        )
+
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.cantidad_actual, 3)
+
+    def test_empleado_real_no_puede_comprar(self):
+        """Un empleado registrado no puede utilizar el checkout."""
+
+        Empleado.objects.create(
+            nombre="Empleado",
+            apellido="Prueba",
+            usuario=self.usuario,
+        )
+
+        self.assertFalse(self.usuario.is_staff)
+
+        with patch(
+            "pagos.checkout_views.crear_preferencia"
+        ) as mercado_pago:
+
+            respuesta = self.comprar(1)
+
+        self.assertEqual(respuesta.status_code, 403)
+        mercado_pago.assert_not_called()
+
+    def test_usuario_sin_ficha_cliente_recibe_403(self):
+        """Un usuario sin ficha de cliente no puede comprar."""
+
+        usuario_sin_cliente = get_user_model().objects.create_user(
+            username="sin_ficha_e4",
+            password="clave_temporal_e4",
+        )
+
+        self.cliente_api.force_authenticate(
+            user=usuario_sin_cliente
+        )
+
+        with patch(
+            "pagos.checkout_views.crear_preferencia"
+        ) as mercado_pago:
+
+            respuesta = self.comprar(1)
+
+        self.assertEqual(respuesta.status_code, 403)
+        mercado_pago.assert_not_called()
