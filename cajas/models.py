@@ -123,10 +123,15 @@ class MetodoPago(models.Model):
         return self.nombre
 
     EFECTIVO = "Efectivo"
+    MERCADO_PAGO = "Mercado Pago"
 
     @classmethod
     def efectivo(cls):
         return cls.objects.get(nombre=cls.EFECTIVO)
+
+    @classmethod
+    def mercado_pago(cls):
+        return cls.objects.get(nombre=cls.MERCADO_PAGO)
 
     @property
     def es_efectivo(self):
