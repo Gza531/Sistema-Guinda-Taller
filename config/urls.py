@@ -7,7 +7,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from core.views import home
-from pagos.checkout_views import CheckoutAPIView
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -29,11 +29,7 @@ urlpatterns = [
     path('api/dashboard/', include('dashboard.urls')),
     path('api/', include('api.urls')),
     path('api-auth/', include('rest_framework.urls')),
-    path(
-        "api/pagos/checkout/",
-        CheckoutAPIView.as_view(),
-        name="pagos-checkout",
-    ),
+    path("api/pagos/", include("pagos.urls")),
 ]
 
 

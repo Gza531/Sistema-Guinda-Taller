@@ -19,6 +19,7 @@ from ventas.services import (
 
 from .checkout_serializers import CheckoutSerializer
 from .services import ErrorMercadoPago, crear_preferencia
+from seguridad.models import Empleado
 
 
 class PagoNoDisponible(APIException):
@@ -34,6 +35,17 @@ class CheckoutAPIView(APIView):
         entrada = CheckoutSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
         datos = entrada.validated_data
+
+        # El checkout es exclusivo para clientes.
+        # No se permite comprar desde cuentas del personal.
+        if (
+            request.user.is_staff
+            or request.user.is_superuser
+            or Empleado.objects.filter(usuario=request.user).exists()
+        ):
+            raise PermissionDenied(
+                "El personal no puede realizar compras desde este checkout."
+            )
 
         # El cliente sale del usuario autenticado.
         cliente = Cliente.objects.filter(
@@ -97,7 +109,7 @@ class CheckoutAPIView(APIView):
             })
 
         metadata = {
-            "cliente_id": cliente.pk,
+            "cliente": cliente.pk,
             "items": [
                 {
                     "producto": producto.pk,
@@ -106,7 +118,7 @@ class CheckoutAPIView(APIView):
                 for producto, cantidad in cantidades.items()
             ],
             "entrega": entrega,
-            "direccion_entrega": direccion,
+            "direccion_entrega": direccion or None,
             "costo_envio": str(costo_envio),
         }
 
