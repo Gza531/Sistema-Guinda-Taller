@@ -175,3 +175,18 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
+
+# --------------------------------------------------------------------------
+# Logs de la app de pagos (Mercado Pago) en la consola del contenedor:
+#   docker compose logs -f web
+# --------------------------------------------------------------------------
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "loggers": {
+        "pagos": {"handlers": ["console"], "level": "INFO"},
+    },
+}
