@@ -119,10 +119,11 @@ def _validar_pagos(pagos, total):
         })
 
 
-def _crear_venta(*, tipo, cliente, usuario, total, observaciones, pedido=None):
+def _crear_venta(*, tipo, cliente, usuario, total, observaciones, pedido=None, mp_payment_id=None):
     venta = Venta.objects.create(
         tipo=tipo,
         pedido=pedido,
+        mp_payment_id=mp_payment_id, 
         cliente=cliente,
         usuario=usuario,
         total=total,
@@ -212,7 +213,7 @@ def registrar_venta_presencial(*, usuario, caja, items, pagos, cliente=None, obs
 @transaction.atomic
 def registrar_venta_online(*, usuario, cliente, items, pagos, entrega,
                            direccion_entrega=None, costo_envio=None,
-                           observaciones=None, precios=None, pedido=None):
+                           observaciones=None, precios=None, pedido=None, mp_payment_id=None):
     """
     Registra una venta online (pedido por WhatsApp, Instagram o la web), en una sola transacción.
 
@@ -263,6 +264,7 @@ def registrar_venta_online(*, usuario, cliente, items, pagos, entrega,
         total=total,
         observaciones=observaciones,
         pedido=pedido,
+        mp_payment_id=mp_payment_id,
     )
     _registrar_detalles(venta=venta, lineas=lineas, ubicacion=DEPOSITO, usuario=usuario)
 
