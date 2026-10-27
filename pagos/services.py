@@ -61,6 +61,34 @@ def _llamar(operacion, funcion, *args, **kwargs):
     return datos
 
 
+def _configuracion_urls():
+    """
+    Prepara las URLs de retorno y notificación de Mercado Pago.
+    """
+    front_url = os.environ.get("FRONT_URL", "").strip().rstrip("/")
+    backend_url = os.environ.get("BACKEND_PUBLIC_URL", "").strip().rstrip("/")
+
+    if not front_url.startswith("https://"):
+        raise ImproperlyConfigured(
+            "FRONT_URL debe ser una URL pública HTTPS."
+        )
+
+    if not backend_url.startswith("https://"):
+        raise ImproperlyConfigured(
+            "BACKEND_PUBLIC_URL debe ser una URL pública HTTPS."
+        )
+
+    return {
+        "back_urls": {
+            "success": f"{front_url}/pago/exito",
+            "failure": f"{front_url}/pago/error",
+            "pending": f"{front_url}/pago/pendiente",
+        },
+        "auto_return": "approved",
+        "notification_url": f"{backend_url}/api/pagos/webhook/",
+    }
+
+
 def crear_preferencia(*, cliente, lineas, costo_envio, metadata):
     """
     Crea una preferencia de Checkout Pro.
@@ -93,7 +121,14 @@ def crear_preferencia(*, cliente, lineas, costo_envio, metadata):
     preferencia = {
         "items": items,
         "metadata": metadata,
+        "binary_mode": True,
+        "payment_methods": {
+            "excluded_payment_types": [
+                {"id": "ticket"}
+            ],
+        },
     }
+    preferencia.update(_configuracion_urls())
 
     datos = _llamar(
         "crear preferencia",
