@@ -1,5 +1,6 @@
 import os
 from decimal import Decimal, InvalidOperation
+import logging
 
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework import status
@@ -21,6 +22,7 @@ from .checkout_serializers import CheckoutSerializer
 from .services import ErrorMercadoPago, crear_preferencia
 from seguridad.models import Empleado
 
+logger = logging.getLogger(__name__)
 
 class PagoNoDisponible(APIException):
     status_code = 503
@@ -32,12 +34,8 @@ class CheckoutAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        entrada = CheckoutSerializer(data=request.data)
-        entrada.is_valid(raise_exception=True)
-        datos = entrada.validated_data
+        # Primero verificamos los permisos del usuario.
 
-        # El checkout es exclusivo para clientes.
-        # No se permite comprar desde cuentas del personal.
         if (
             request.user.is_staff
             or request.user.is_superuser
@@ -46,6 +44,11 @@ class CheckoutAPIView(APIView):
             raise PermissionDenied(
                 "El personal no puede realizar compras desde este checkout."
             )
+
+        # Después validamos los datos del carrito.
+        entrada = CheckoutSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        datos = entrada.validated_data
 
         # El cliente sale del usuario autenticado.
         cliente = Cliente.objects.filter(
@@ -130,6 +133,9 @@ class CheckoutAPIView(APIView):
                 metadata=metadata,
             )
         except (ErrorMercadoPago, ImproperlyConfigured) as error:
+            logger.exception(
+                "No se pudo crear la preferencia de Mercado Pago"
+            )
             raise PagoNoDisponible() from error
 
         return Response(
