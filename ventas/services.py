@@ -12,6 +12,7 @@ from cajas.models import Caja, MovimientoCaja
 from cajas.services import caja_online, registrar_movimiento_caja, sesion_abierta, sesion_online
 from clientes.models import Cliente
 from envios.services import cancelar_envios_de_venta, crear_envio
+from pagos.services import ErrorMercadoPago, obtener_pago, reembolsar
 from promociones.services import descuento_vigente
 from stock.models import Stock
 from stock.services import registrar_entrada, registrar_salida
@@ -281,6 +282,33 @@ def registrar_venta_online(*, usuario, cliente, items, pagos, entrega,
 
 # ---------------------------------------------------------------- anulación
 
+def _devolver_por_mercado_pago(venta):
+    """
+    G6: la venta se cobró por la tienda web → se le devuelve el dinero al cliente
+    por Mercado Pago (devolución total).
+
+    Si Mercado Pago no responde, se lanza un error y anular_venta deshace todo:
+    la venta sigue Registrada y se puede volver a intentar más tarde.
+    Si el pago ya estaba devuelto (por ejemplo, desde el panel de Mercado Pago),
+    la anulación sigue normalmente.
+    """
+    try:
+        reembolsar(venta.mp_payment_id)
+    except ErrorMercadoPago as error:
+        try:
+            ya_devuelto = obtener_pago(venta.mp_payment_id).get("status") == "refunded"
+        except ErrorMercadoPago:
+            ya_devuelto = False
+
+        if not ya_devuelto:
+            raise ValidationError({
+                "mercado_pago": (
+                    "No se pudo devolver el dinero por Mercado Pago, así que la venta "
+                    "no se anuló. Intentá de nuevo en unos minutos."
+                )
+            }) from error
+
+
 @transaction.atomic
 def anular_venta(*, venta, usuario, motivo):
     """
@@ -346,4 +374,7 @@ def anular_venta(*, venta, usuario, motivo):
     venta.estado = Venta.EstadoVenta.ANULADA
     venta.observaciones = texto
     venta.save(update_fields=["estado", "observaciones"])
+    if venta.mp_payment_id:
+        _devolver_por_mercado_pago(venta)
+
     return venta
