@@ -70,6 +70,15 @@ class PreferenciaMercadoPagoTests(SimpleTestCase):
                     datos["notification_url"],
                     "https://api.tienda.example/api/pagos/webhook/",
                 )
+                self.assertEqual(
+                    datos["back_urls"]["success"],
+                    "https://tienda.example/pago/exito",
+                )
+
+                self.assertEqual(
+                    datos["auto_return"],
+                    "approved",
+                )
 
     def test_rechaza_frontend_sin_https(self):
         """Verifica que no se creen preferencias con URLs inválidas."""
@@ -504,7 +513,11 @@ class CheckoutStockTests(TestCase):
         """Un envío sin dirección no puede iniciar un pago."""
 
         with patch(
-            "pagos.checkout_views.crear_preferencia"
+            "pagos.checkout_views.crear_preferencia",
+            return_value={
+                "id": "pref_simulada",
+                "init_point": "https://example.test/pago",
+            },
         ) as mercado_pago:
 
             respuesta = self.cliente_api.post(
@@ -594,7 +607,11 @@ class CheckoutStockTests(TestCase):
         self.assertFalse(self.usuario.is_staff)
 
         with patch(
-            "pagos.checkout_views.crear_preferencia"
+            "pagos.checkout_views.crear_preferencia",
+            return_value={
+                "id": "pref_simulada",
+                "init_point": "https://example.test/pago",
+            },
         ) as mercado_pago:
 
             respuesta = self.comprar(1)
