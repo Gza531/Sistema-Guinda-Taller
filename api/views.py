@@ -17,6 +17,8 @@ from catalogo.models import (
 )
 
 from core.mixins import BajaLogicaMixin
+from auditoria.models import Auditoria
+from auditoria.services import registrar as registrar_auditoria
 from core.permissions import LecturaPublicaEscrituraPorRol, es_personal
 
 from django.contrib.auth import authenticate, get_user_model
@@ -294,12 +296,28 @@ class LoginAPIView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        if es_personal(usuario):
+            registrar_auditoria(
+                usuario=usuario,
+                accion=Auditoria.Accion.LOGIN,
+                tabla=usuario._meta.db_table,
+                id_registro=usuario.pk,
+            )
+
         roles = list(
             usuario.groups.values_list("name", flat=True)
         )
 
         es_empleado = hasattr(usuario, "empleado")
         refresh = RefreshToken.for_user(usuario)
+
+        if es_personal(usuario):
+            registrar_auditoria(
+                usuario=usuario,
+                accion=Auditoria.Accion.LOGIN,
+                tabla=usuario._meta.db_table,
+                id_registro=usuario.pk,
+            )
 
         return Response(
             {
@@ -314,6 +332,25 @@ class LoginAPIView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+class LogoutAPIView(APIView):
+       """
+       POST /api/logout/ → registra el cierre de sesión en la auditoría.
+       Con JWT, cerrar sesión es borrar los tokens en el navegador: este endpoint
+       solo deja constancia. El front lo llama antes de borrarlos.
+       """
+       permission_classes = [IsAuthenticated]
+
+       def post(self, request):
+        if es_personal(request.user):
+            registrar_auditoria(
+                usuario=request.user,
+                accion=Auditoria.Accion.LOGOUT,
+                tabla=request.user._meta.db_table,
+                id_registro=request.user.pk,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 
 class PerfilAPIView(APIView):

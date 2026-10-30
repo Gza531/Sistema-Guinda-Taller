@@ -94,6 +94,9 @@ MATRIZ = {
     # Dashboard y seguridad
     "ver_dashboard": TODO_EL_PERSONAL,
     "gestionar_seguridad": ADMINISTRACION,
+    # Auditoria
+    "ver_auditoria": {DUENA},
+
 }
 
 
