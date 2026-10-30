@@ -1,12 +1,14 @@
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from core.permissions import PermisoPorAccion
+from core.permissions import EsCliente, PermisoPorAccion
 from rest_framework.response import Response
 
 from . import services
 from .models import Venta
 from .serializers import (
     AnularVentaSerializer,
+    MiCompraDetalleSerializer,
+    MiCompraSerializer,
     NuevaVentaOnlineSerializer,
     NuevaVentaSerializer,
     VentaSerializer,
@@ -122,3 +124,28 @@ class VentaViewSet(mixins.ListModelMixin,
           )
           venta = self.get_queryset().get(pk=venta.pk)
           return Response(VentaSerializer(venta).data)
+
+class MisComprasViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Tienda web: las compras del cliente que inició sesión.
+
+    GET /api/ventas/mis-compras/        → listado (paginado, la más nueva primero)
+    GET /api/ventas/mis-compras/{id}/   → detalle con los productos
+
+    Muestra todas sus ventas (web y del local), también las anuladas.
+    El queryset ya viene filtrado por su cliente: si pide una compra ajena, recibe 404.
+    """
+    permission_classes = [EsCliente]
+
+    def get_queryset(self):
+        return (
+            Venta.objects
+            .filter(cliente__usuario=self.request.user)
+            .prefetch_related("detalleventa_set__producto", "envio_set")
+            .order_by("-fecha", "-id_venta")
+        )
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return MiCompraDetalleSerializer
+        return MiCompraSerializer
