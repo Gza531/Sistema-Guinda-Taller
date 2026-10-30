@@ -10,6 +10,7 @@ from .views import (
     PerfilAPIView,
     MarcaViewSet,
     CategoriaViewSet,
+    LogoutAPIView,
 )
 
 
@@ -30,6 +31,7 @@ urlpatterns = [
     path('estado/', EstadoAPIView.as_view(), name='api-estado'),
     path("registro/", RegistroAPIView.as_view(), name="api-registro"),
     path("login/", LoginAPIView.as_view(), name="api-login"),
+    path("logout/", LogoutAPIView.as_view(), name="api-logout"),
     path("perfil/", PerfilAPIView.as_view(), name="api-perfil"),
     
     path(
