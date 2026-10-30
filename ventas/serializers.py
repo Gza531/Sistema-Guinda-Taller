@@ -93,3 +93,56 @@ class NuevaVentaOnlineSerializer(serializers.Serializer):
         max_digits=12, decimal_places=2, min_value=Decimal("0"), required=False, allow_null=True
     )
     observaciones = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+# ---------------- Mis compras (tienda web: lo que ve el cliente) ----------------
+# Solo datos que le sirven al cliente: nada de usuario, caja, observaciones
+# internas ni id de Mercado Pago.
+
+class MiEnvioSerializer(serializers.ModelSerializer):
+    estado_texto = serializers.CharField(source="get_estado_display", read_only=True)
+
+    class Meta:
+        model = Envio
+        fields = ["estado", "estado_texto", "empresa_transporte", "codigo_seguimiento",
+                  "fecha_despacho", "direccion_entrega", "costo"]
+        read_only_fields = fields
+
+
+class MiDetalleCompraSerializer(serializers.ModelSerializer):
+    producto_nombre = serializers.CharField(source="producto.nombre", read_only=True)
+
+    class Meta:
+        model = DetalleVenta
+        fields = ["producto", "producto_nombre", "cantidad", "precio_unitario",
+                  "descuento_aplicado", "subtotal"]
+        read_only_fields = fields
+
+
+class MiCompraSerializer(serializers.ModelSerializer):
+    """Listado: lo justo para la tarjeta de cada compra."""
+    estado_texto = serializers.CharField(source="get_estado_display", read_only=True)
+    cantidad_productos = serializers.SerializerMethodField()
+    envio = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Venta
+        fields = ["id_venta", "numero_comprobante", "fecha", "tipo", "estado", "estado_texto",
+                  "total", "cantidad_productos", "envio"]
+        read_only_fields = fields
+
+    def get_cantidad_productos(self, venta):
+        return sum(detalle.cantidad for detalle in venta.detalleventa_set.all())
+
+    def get_envio(self, venta):
+        # Una venta tiene a lo sumo un envío; si no tiene, es retiro en el local (o venta en el local)
+        envios = venta.envio_set.all()
+        return MiEnvioSerializer(envios[0]).data if envios else None
+
+
+class MiCompraDetalleSerializer(MiCompraSerializer):
+    """Detalle: lo mismo que el listado, más los productos comprados."""
+    detalles = MiDetalleCompraSerializer(source="detalleventa_set", many=True, read_only=True)
+
+    class Meta(MiCompraSerializer.Meta):
+        fields = MiCompraSerializer.Meta.fields + ["detalles"]
+        read_only_fields = fields    

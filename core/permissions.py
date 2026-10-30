@@ -19,6 +19,19 @@ def es_personal(usuario):
     )
 
 
+class EsCliente(BasePermission):
+    """Deja pasar solo a clientes de la tienda web (con sesión y sin ser personal)."""
+    message = "Esta sección es para clientes de la tienda."
+
+    def has_permission(self, request, view):
+        usuario = request.user
+        return bool(
+            usuario
+            and usuario.is_authenticated
+            and not es_personal(usuario)
+            and hasattr(usuario, "cliente")
+        )
+
 class EsPersonal(BasePermission):
     """Deja pasar solo a empleados del local y al superusuario."""
     message = "Esta sección es solo para el personal del local."
