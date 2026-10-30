@@ -296,14 +296,6 @@ class LoginAPIView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        if es_personal(usuario):
-            registrar_auditoria(
-                usuario=usuario,
-                accion=Auditoria.Accion.LOGIN,
-                tabla=usuario._meta.db_table,
-                id_registro=usuario.pk,
-            )
-
         roles = list(
             usuario.groups.values_list("name", flat=True)
         )

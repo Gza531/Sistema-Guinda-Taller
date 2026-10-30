@@ -111,6 +111,7 @@ class AuditoriaTests(TestCase):
                                      format="json")
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(self._ultimo(accion="LOGIN").usuario, self.duena)
+        self.assertEqual(Auditoria.objects.filter(accion="LOGIN").count(), 1)
 
     def test_login_fallido_no_registra(self):
         APIClient().post("/api/login/", {"username": "duena_test", "password": "mala"}, format="json")
@@ -133,7 +134,7 @@ class AuditoriaTests(TestCase):
         with como_usuario(usuario):
             Marca.objects.create(nombre="Hecha por un cliente")
         self.assertEqual(list(Auditoria.objects.values_list("accion", "tabla_afectada")), [])
-        
+
     def test_logout_sin_sesion_da_401(self):
         self.assertEqual(APIClient().post("/api/logout/").status_code, 401)
 
