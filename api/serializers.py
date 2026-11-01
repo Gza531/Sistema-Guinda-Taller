@@ -185,6 +185,16 @@ class RegistroClienteSerializer(serializers.Serializer):
 
 
 
+class RecuperarPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class RestablecerPasswordSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+
 class SubirImagenesSerializer(serializers.Serializer):
     imagenes = serializers.ListField(
         child=serializers.ImageField(),

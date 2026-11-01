@@ -30,6 +30,7 @@ from rest_framework.permissions import (
     IsAuthenticated,
 
 )
+from rest_framework.throttling import ScopedRateThrottle
 
 from catalogo.models import (
     Producto,
@@ -42,6 +43,8 @@ from .serializers import (
     MarcaSerializer,
     CategoriaSerializer,
     RegistroClienteSerializer,
+    RecuperarPasswordSerializer,
+    RestablecerPasswordSerializer,
     ImagenProductoSerializer,
     SubirImagenesSerializer,
     OrdenImagenesSerializer,
@@ -267,6 +270,48 @@ class RegistroAPIView(APIView):
             },
             status=status.HTTP_201_CREATED
         )
+
+class RecuperarPasswordAPIView(APIView):
+    """
+    POST /api/recuperar-password/  { "email": "..." }
+    Manda el link para elegir una contraseña nueva (solo clientes de la tienda).
+    Responde siempre lo mismo, exista o no el email: así no se puede averiguar
+    quién tiene cuenta. Máximo 5 pedidos por hora por IP.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "recuperar_password"
+
+    def post(self, request):
+        entrada = RecuperarPasswordSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+
+        clientes_services.enviar_recuperacion(entrada.validated_data["email"])
+
+        return Response({
+            "mensaje": "Si el email está registrado, te enviamos un link para elegir una contraseña nueva."
+        })
+
+
+class RestablecerPasswordAPIView(APIView):
+    """
+    POST /api/recuperar-password/confirmar/  { "uid", "token", "password" }
+    uid y token vienen en el link del mail (/restablecer/<uid>/<token> en el front).
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "recuperar_password"
+
+    def post(self, request):
+        entrada = RestablecerPasswordSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+
+        clientes_services.restablecer_password(**entrada.validated_data)
+
+        return Response({"mensaje": "Listo: ya podés iniciar sesión con tu contraseña nueva."})
+
 
 class LoginAPIView(APIView):
     permission_classes = [AllowAny]
