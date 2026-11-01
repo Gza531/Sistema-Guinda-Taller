@@ -5,6 +5,8 @@ import uuid
 from collections import OrderedDict
 from decimal import Decimal
 
+import logging
+
 from django.db import models, transaction
 from rest_framework.exceptions import ValidationError
 
@@ -19,6 +21,8 @@ from stock.services import registrar_entrada, registrar_salida
 
 from .models import DetalleVenta, Venta
 
+
+logger = logging.getLogger("pagos.devoluciones")
 
 CERO = Decimal("0.00")
 SALON = Stock.Ubicaciones.SUCURSAL
@@ -301,7 +305,11 @@ def _devolver_por_mercado_pago(venta):
             ya_devuelto = False
 
         if not ya_devuelto:
-            raise ValidationError({
+              logger.warning(
+                  "No se pudo devolver el pago %s de la venta %s: %s",
+                  venta.mp_payment_id, venta.numero_comprobante, error,
+              )
+              raise ValidationError({
                 "mercado_pago": (
                     "No se pudo devolver el dinero por Mercado Pago, así que la venta "
                     "no se anuló. Intentá de nuevo en unos minutos."
