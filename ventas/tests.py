@@ -1,15 +1,21 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
+from cajas.models import Caja, MetodoPago, MovimientoCaja
 from catalogo.models import Categoria, Marca, Producto
 from clientes.models import Cliente
 from envios.models import Envio
+from pagos.services import ErrorMercadoPago
 from seguridad.models import Empleado
+from stock.models import Stock
 
 from .models import DetalleVenta, Venta
+from .services import Entrega, anular_venta, registrar_venta_online
 
 
 URL = "/api/ventas/mis-compras/"
@@ -107,3 +113,79 @@ class MisComprasTests(TestCase):
         api = self._cliente_api(self.usuario_ana)
         self.assertEqual(api.delete(f"{URL}{self.web.pk}/").status_code, 405)
         self.assertEqual(api.post(URL, {}, format="json").status_code, 405)
+
+# ---------------- Anulación con devolución por Mercado Pago ----------------
+
+class AnularVentaMercadoPagoTests(TestCase):
+    """
+    anular_venta con una venta cobrada por Mercado Pago. Mercado Pago se simula
+    (no se llama a la API real): así se prueban los tres casos posibles.
+    """
+
+    def setUp(self):
+        Usuario = get_user_model()
+        self.encargada = Usuario.objects.create_user(username="encargada_test", password="x")
+        Empleado.objects.create(nombre="Paula", apellido="Rivas", usuario=self.encargada)
+
+        usuario_ana = Usuario.objects.create_user(username="ana_mp", password="x")
+        ana = Cliente.objects.create(nombre="Ana", apellido="Pérez", usuario=usuario_ana)
+
+        Caja.objects.create(nombre="Caja online test", tipo_caja=Caja.TipoCaja.ONLINE)
+
+        self.producto = Producto.objects.create(
+            nombre="Perfume MP",
+            origen=Producto.OrigenProducto.NACIONAL,
+            precio_venta=Decimal("10000.00"),
+            marca=Marca.objects.create(nombre="Marca MP"),
+            categoria=Categoria.objects.create(nombre="Categoría MP"),
+        )
+        self.stock = Stock.objects.create(
+            producto=self.producto, ubicacion=Stock.Ubicaciones.DEPOSITO, cantidad_actual=5,
+        )
+
+        # Como la registra el webhook: a nombre del cliente, cobrada por Mercado Pago
+        self.venta = registrar_venta_online(
+            usuario=usuario_ana,
+            cliente=ana,
+            items=[{"producto": self.producto, "cantidad": 2}],
+            pagos=[{"metodo_pago": MetodoPago.mercado_pago(), "monto": Decimal("20000.00")}],
+            entrega=Entrega.ENVIO,
+            direccion_entrega="Mitre 123, Salta",
+            costo_envio=Decimal("0.00"),
+            mp_payment_id="123456",
+        )
+
+    def _anular(self):
+        return anular_venta(venta=self.venta, usuario=self.encargada, motivo="El cliente se arrepintió")
+
+    def _estado(self):
+        self.venta.refresh_from_db()
+        self.stock.refresh_from_db()
+        envio = Envio.objects.get(venta=self.venta)
+        egresos = MovimientoCaja.objects.filter(
+            venta=self.venta, tipo_movimiento=MovimientoCaja.TipoMovimiento.EGRESO
+        ).count()
+        return self.venta.estado, self.stock.cantidad_actual, envio.estado, egresos
+
+    @patch("ventas.services.reembolsar")
+    def test_devolucion_ok_anula_todo(self, reembolsar):
+        self._anular()
+        reembolsar.assert_called_once_with("123456")
+        self.assertEqual(self._estado(), ("ANULADA", 5, "CANCELADO", 1))
+
+    @patch("ventas.services.obtener_pago", return_value={"status": "refunded"})
+    @patch("ventas.services.reembolsar", side_effect=ErrorMercadoPago("HTTP 400"))
+    def test_si_ya_estaba_devuelto_anula_igual(self, reembolsar, obtener_pago):
+        # Ej.: la devolución se hizo a mano desde Mercado Pago antes de anular
+        self._anular()
+        obtener_pago.assert_called_once_with("123456")
+        self.assertEqual(self._estado(), ("ANULADA", 5, "CANCELADO", 1))
+
+    @patch("ventas.services.obtener_pago", return_value={"status": "approved"})
+    @patch("ventas.services.reembolsar", side_effect=ErrorMercadoPago("HTTP 401"))
+    def test_si_falla_la_devolucion_no_se_anula_nada(self, reembolsar, obtener_pago):
+        with self.assertRaises(ValidationError) as error:
+            self._anular()
+        self.assertIn("mercado_pago", error.exception.detail)
+        # Todo como antes: la venta sigue registrada, el stock descontado, el envío pendiente
+        self.assertEqual(self._estado(), ("REGISTRADA", 3, "PENDIENTE", 0))
