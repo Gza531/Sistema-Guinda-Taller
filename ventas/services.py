@@ -374,6 +374,10 @@ def anular_venta(*, venta, usuario, motivo):
     venta.estado = Venta.EstadoVenta.ANULADA
     venta.observaciones = texto
     venta.save(update_fields=["estado", "observaciones"])
+
+     # Último paso, cuando todo lo demás ya salió bien: si se cobró por Mercado Pago,
+    # se le devuelve el dinero. Si falla, la transacción deshace stock, caja y envíos.
+
     if venta.mp_payment_id:
         _devolver_por_mercado_pago(venta)
 
