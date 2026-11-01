@@ -11,6 +11,8 @@ from .views import (
     MarcaViewSet,
     CategoriaViewSet,
     LogoutAPIView,
+    RecuperarPasswordAPIView,
+    RestablecerPasswordAPIView,
 )
 
 
@@ -32,6 +34,12 @@ urlpatterns = [
     path("registro/", RegistroAPIView.as_view(), name="api-registro"),
     path("login/", LoginAPIView.as_view(), name="api-login"),
     path("logout/", LogoutAPIView.as_view(), name="api-logout"),
+    path("recuperar-password/", RecuperarPasswordAPIView.as_view(), name="api-recuperar-password"),
+    path(
+        "recuperar-password/confirmar/",
+        RestablecerPasswordAPIView.as_view(),
+        name="api-restablecer-password",
+    ),
     path("perfil/", PerfilAPIView.as_view(), name="api-perfil"),
     
     path(

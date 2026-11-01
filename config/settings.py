@@ -177,6 +177,10 @@ REST_FRAMEWORK = {
        ),
        "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
        "PAGE_SIZE": 10,
+       # Límite de pedidos para las vistas que lo declaran (throttle_scope)
+       "DEFAULT_THROTTLE_RATES": {
+           "recuperar_password": "5/hour",
+       },
    }
 
 SIMPLE_JWT = {
@@ -185,6 +189,28 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
+
+# --------------------------------------------------------------------------
+# Correo (recuperar contraseña). Datos en el .env, nunca en el código.
+# Sin EMAIL_HOST_USER (desarrollo): el mail se imprime en docker compose logs web.
+# --------------------------------------------------------------------------
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL", "Guinda Perfumería <no-responder@guinda.local>"
+)
+
+if EMAIL_HOST_USER:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = "smtp.gmail.com"
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# El link para restablecer la contraseña vence a la hora (en segundos)
+PASSWORD_RESET_TIMEOUT = 60 * 60
+
 
 # --------------------------------------------------------------------------
 # Logs de la app de pagos (Mercado Pago) en la consola del contenedor:

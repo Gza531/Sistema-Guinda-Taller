@@ -1,6 +1,13 @@
+import os
 import unicodedata
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
+from django.core.exceptions import ValidationError as ErrorDeDjango
+from django.core.mail import send_mail
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.contrib.auth.models import Group
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
@@ -128,3 +135,76 @@ def registrar_cliente(
     )
 
     return cliente, False
+
+
+# ---------------- Recuperar contraseña (solo clientes de la tienda) ----------------
+# El personal no recupera por mail: a un empleado le cambia la contraseña la Dueña
+# desde Empleados (así alguien dado de baja no puede volver a entrar por esta vía).
+#
+# El token es el de Django (default_token_generator): no se guarda en ninguna tabla,
+# se calcula con los datos del usuario. Por eso deja de servir apenas se cambia la
+# contraseña (un solo uso) y vence solo (PASSWORD_RESET_TIMEOUT en settings).
+
+LINK_INVALIDO = "El link no es válido o ya venció. Pedí uno nuevo."
+
+
+def _clientes_que_pueden_recuperar():
+    return Usuario.objects.filter(
+        is_active=True,
+        cliente__isnull=False,
+        cliente__estado=True,
+        empleado__isnull=True,
+        is_superuser=False,
+    )
+
+
+def _link_de_recuperacion(usuario):
+    front = os.environ.get("FRONT_URL", "").strip().rstrip("/") or "http://localhost:5173"
+    uid = urlsafe_base64_encode(force_bytes(usuario.pk))
+    token = default_token_generator.make_token(usuario)
+    return f"{front}/restablecer/{uid}/{token}"
+
+
+def enviar_recuperacion(email):
+    """
+    Si el email es de un cliente, le manda el link para elegir una contraseña nueva.
+    No avisa si el email no existe: la vista responde siempre lo mismo.
+    """
+    email = (email or "").strip()
+
+    for usuario in _clientes_que_pueden_recuperar().filter(email__iexact=email):
+        send_mail(
+            subject="Guinda Perfumería · Recuperá tu contraseña",
+            message=(
+                f"Hola {usuario.cliente.nombre}:\n\n"
+                "Recibimos un pedido para cambiar la contraseña de tu cuenta "
+                f"«{usuario.username}» en Guinda Perfumería.\n\n"
+                "Para elegir una nueva, entrá a este link (vence en 1 hora):\n"
+                f"{_link_de_recuperacion(usuario)}\n\n"
+                "Si no lo pediste, ignorá este mail: tu contraseña no cambia."
+            ),
+            from_email=None,            # usa DEFAULT_FROM_EMAIL
+            recipient_list=[usuario.email],
+        )
+
+
+def restablecer_password(*, uid, token, password):
+    """Verifica el link y guarda la contraseña nueva. El link queda usado."""
+    try:
+        pk = force_str(urlsafe_base64_decode(uid))
+        usuario = _clientes_que_pueden_recuperar().get(pk=pk)
+    except (TypeError, ValueError, OverflowError, Usuario.DoesNotExist):
+        raise ValidationError({"detail": LINK_INVALIDO})
+
+    if not default_token_generator.check_token(usuario, token):
+        raise ValidationError({"detail": LINK_INVALIDO})
+
+    try:
+        validate_password(password, usuario)
+    except ErrorDeDjango as error:
+        raise ValidationError({"password": list(error.messages)})
+
+    usuario.set_password(password)
+    usuario.save(update_fields=["password"])
+    return usuario
+
