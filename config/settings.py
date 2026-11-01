@@ -70,6 +70,10 @@ AUTH_USER_MODEL = "seguridad.Usuario"
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
+# En desarrollo, el front también se abre desde el túnel HTTPS (FRONT_URL)
+# para que Mercado Pago pueda volver a la tienda.
+if os.environ.get("FRONT_URL"):
+    CORS_ALLOWED_ORIGINS.append(os.environ["FRONT_URL"].rstrip("/"))
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
