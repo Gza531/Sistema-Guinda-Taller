@@ -30,6 +30,11 @@ DEBUG = os.environ.get('DEBUG', '0') == '1'
 # DJANGO_ALLOWED_HOSTS viene separado por comas, ej: "localhost,127.0.0.1"
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# Detrás de un túnel o proxy HTTPS (cloudflared, Caddy): a Django le llega HTTP,
+# pero el proxy avisa con X-Forwarded-Proto que el cliente usó HTTPS.
+# Así los links que arma Django (paginación "next", URLs de imágenes) salen con https.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 
 # --------------------------------------------------------------------------
 # Aplicaciones instaladas
