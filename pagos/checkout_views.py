@@ -1,5 +1,4 @@
-import os
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 import logging
 
 from django.core.exceptions import ImproperlyConfigured
@@ -19,7 +18,7 @@ from ventas.services import (
 )
 
 from .checkout_serializers import CheckoutSerializer
-from .services import ErrorMercadoPago, crear_preferencia
+from .services import ErrorMercadoPago, costo_envio_configurado, crear_preferencia
 from seguridad.models import Empleado
 
 logger = logging.getLogger(__name__)
@@ -83,10 +82,8 @@ class CheckoutAPIView(APIView):
 
         # El costo se configura en el servidor, no en React.
         try:
-            costo_configurado = Decimal(
-                os.environ.get("MP_COSTO_ENVIO", "0") or "0"
-            )
-        except InvalidOperation as error:
+            costo_configurado = costo_envio_configurado()
+        except ImproperlyConfigured as error:
             raise PagoNoDisponible() from error
 
         if (

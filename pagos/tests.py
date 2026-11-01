@@ -639,3 +639,27 @@ class CheckoutStockTests(TestCase):
 
         self.assertEqual(respuesta.status_code, 403)
         mercado_pago.assert_not_called()
+
+class ConfiguracionTiendaTests(SimpleTestCase):
+    """GET /api/pagos/configuracion/: el costo de envío que muestra la tienda."""
+
+    URL = "/api/pagos/configuracion/"
+
+    def _get(self, valor):
+        with patch.dict(os.environ, {"MP_COSTO_ENVIO": valor}):
+            return APIClient().get(self.URL)
+
+    def test_devuelve_el_costo_sin_sesion(self):
+        respuesta = self._get("3500")
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.data, {"costo_envio": "3500.00"})
+
+    def test_sin_configurar_el_envio_es_gratis(self):
+        self.assertEqual(self._get("").data, {"costo_envio": "0.00"})
+
+    def test_valor_invalido_devuelve_503(self):
+        self.assertEqual(self._get("abc").status_code, 503)
+        self.assertEqual(self._get("-10").status_code, 503)
+
+    def test_solo_lectura(self):
+        self.assertEqual(APIClient().post(self.URL, {}).status_code, 405)

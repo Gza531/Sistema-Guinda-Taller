@@ -1,6 +1,6 @@
 
 import os
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 import mercadopago
 import requests
@@ -8,6 +8,23 @@ from mercadopago.config import RequestOptions
 from django.core.exceptions import ImproperlyConfigured
 
 from mercadopago.errors.exceptions import MercadoPagoError
+
+
+def costo_envio_configurado():
+    """
+    Costo fijo del envío a domicilio, en pesos (variable MP_COSTO_ENVIO del .env).
+    Lo usan el checkout (para cobrarlo) y la tienda (para mostrarlo antes de pagar).
+    Si no está cargado, el envío es gratis (0).
+    """
+    try:
+        costo = Decimal(os.environ.get("MP_COSTO_ENVIO", "0") or "0")
+    except InvalidOperation as error:
+        raise ImproperlyConfigured("MP_COSTO_ENVIO tiene que ser un número.") from error
+
+    if not costo.is_finite() or costo < 0:
+        raise ImproperlyConfigured("MP_COSTO_ENVIO tiene que ser 0 o más.")
+
+    return costo
 
 class ErrorMercadoPago(Exception):
     """
