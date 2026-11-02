@@ -177,6 +177,11 @@ REST_FRAMEWORK = {
        ),
        "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
        "PAGE_SIZE": 10,
+
+       "DEFAULT_THROTTLE_RATES": {
+            "recuperar_password": "5/hour",
+            "confirmar_password": "10/hour",
+        },
    }
 
 SIMPLE_JWT = {
@@ -200,3 +205,28 @@ LOGGING = {
         "pagos": {"handlers": ["console"], "level": "INFO"},
     },
 }
+
+# Recuperación de contraseñas
+
+PASSWORD_RESET_TIMEOUT = 3600  # 1 hora
+
+FRONTEND_URL = os.environ.get(
+    "FRONTEND_URL",
+    "http://localhost:5173"
+)
+
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL",
+    "Guinda Perfumería <no-responder@guinda.local>"
+)
+
+if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = "smtp.gmail.com"
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
