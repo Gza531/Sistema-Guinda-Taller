@@ -2,6 +2,8 @@ import unicodedata
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
@@ -128,3 +130,86 @@ def registrar_cliente(
     )
 
     return cliente, False
+
+# ---------- Mi perfil (el cliente edita sus propios datos) ----------
+
+DOCUMENTO_FIJO = (
+    "El documento ya está cargado y no se puede cambiar desde la tienda. "
+    "Si hay un error, consultá en el local."
+)
+
+
+def _validar_documento(*, cliente, datos):
+    """
+    El documento se puede cargar una sola vez desde la tienda.
+    Si ya tiene uno, solo se acepta el mismo (el formulario lo reenvía tal cual).
+    """
+    if "tipo_documento" not in datos and "nro_documento" not in datos:
+        return
+
+    tipo = datos.get("tipo_documento", cliente.tipo_documento)
+    nro = datos.get("nro_documento", cliente.nro_documento)
+
+    if cliente.nro_documento:
+        if (tipo, nro) != (cliente.tipo_documento, cliente.nro_documento):
+            raise ValidationError({"nro_documento": DOCUMENTO_FIJO})
+        return
+
+    if bool(tipo) != bool(nro):
+        raise ValidationError({
+            "nro_documento": "El tipo y el número de documento van juntos: completá los dos o ninguno."
+        })
+
+    if nro and Cliente.objects.filter(nro_documento=nro).exclude(pk=cliente.pk).exists():
+        raise ValidationError({
+            "nro_documento": "Ya hay un cliente registrado con ese documento. Consultá en el local."
+        })
+
+
+@transaction.atomic
+def actualizar_mi_perfil(*, cliente, datos):
+    """
+    Guarda los cambios del propio cliente.
+    El email vive en dos lugares (Usuario y Cliente) y tiene que quedar igual en ambos:
+    el del Usuario es el que usa la recuperación de contraseña.
+    """
+    # Sin select_related: PostgreSQL no deja bloquear (FOR UPDATE) un JOIN con una FK que admite NULL.
+    cliente = Cliente.objects.select_for_update().get(pk=cliente.pk)
+    usuario = cliente.usuario
+
+    email = datos.get("email")
+    if email is not None:
+        if Usuario.objects.filter(email__iexact=email).exclude(pk=usuario.pk).exists():
+            raise ValidationError({"email": "Ya existe una cuenta con ese email."})
+
+    _validar_documento(cliente=cliente, datos=datos)
+
+    for campo, valor in datos.items():
+        setattr(cliente, campo, valor)
+    cliente.save()
+
+    if email is not None and usuario.email != email:
+        usuario.email = email
+        usuario.save(update_fields=["email"])
+
+    return cliente
+
+
+@transaction.atomic
+def cambiar_mi_password(*, usuario, actual, nueva):
+    """El cliente cambia su contraseña: tiene que saber la actual."""
+    if not usuario.check_password(actual):
+        raise ValidationError({"password_actual": "La contraseña actual no es correcta."})
+
+    if usuario.check_password(nueva):
+        raise ValidationError({
+            "password_nueva": "La contraseña nueva tiene que ser distinta de la actual."
+        })
+
+    try:
+        validate_password(nueva, user=usuario)
+    except DjangoValidationError as error:
+        raise ValidationError({"password_nueva": list(error.messages)})
+
+    usuario.set_password(nueva)
+    usuario.save(update_fields=["password"])
