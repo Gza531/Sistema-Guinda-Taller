@@ -98,6 +98,13 @@ class MisComprasTests(TestCase):
         local = next(c for c in respuesta.data["results"] if c["id_venta"] == self.local.pk)
         self.assertIsNone(local["envio"])
 
+    def test_detalle_trae_marca_volumen_e_imagen(self):
+        respuesta = self._cliente_api(self.usuario_ana).get(f"{URL}{self.web.pk}/")
+        detalle = respuesta.data["detalles"][0]
+        self.assertEqual(detalle["marca_nombre"], "Marca test")
+        self.assertIn("volumen", detalle)
+        self.assertIsNone(detalle["imagen"])  # el producto de prueba no tiene fotos
+
     def test_detalle_trae_productos_y_no_datos_internos(self):
         respuesta = self._cliente_api(self.usuario_ana).get(f"{URL}{self.web.pk}/")
         self.assertEqual(respuesta.status_code, 200)
