@@ -141,7 +141,11 @@ class MisComprasViewSet(viewsets.ReadOnlyModelViewSet):
         return (
             Venta.objects
             .filter(cliente__usuario=self.request.user)
-            .prefetch_related("detalleventa_set__producto", "detalleventa_set__producto__imagenes", "envio_set",)
+            .prefetch_related(
+                "detalleventa_set__producto__marca",
+                "detalleventa_set__producto__imagenes",
+                "envio_set",
+            )
             .order_by("-fecha", "-id_venta")
         )
 
