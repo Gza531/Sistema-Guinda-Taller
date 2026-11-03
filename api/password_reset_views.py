@@ -54,6 +54,8 @@ class ConfirmarRecuperacionSerializer(serializers.Serializer):
             usuario_id=usuario_id,
             estado=True,
             usuario__is_active=True,
+            usuario__empleado__isnull=True,
+            usuario__is_superuser=False,
         ).first()
 
         if cliente is None:
@@ -95,6 +97,8 @@ class RecuperarPasswordAPIView(APIView):
             usuario__email__iexact=email,
             usuario__is_active=True,
             estado=True,
+            usuario__empleado__isnull=True,
+            usuario__is_superuser=False,
         )
 
         for cliente in clientes:

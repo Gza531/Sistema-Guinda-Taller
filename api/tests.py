@@ -198,6 +198,66 @@ class RecuperacionPasswordTests(TestCase):
 
         self.assertEqual(confirmacion.status_code, 400)
 
+    def test_empleado_con_cliente_no_recibe_enlace(self):
+        Empleado.objects.create(
+            usuario=self.usuario,
+            nombre="Empleado",
+            apellido="Con Cliente",
+            estado=True,
+        )
+
+        respuesta = self.solicitar(self.usuario.email)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+
+        # No debe revelar que la cuenta pertenece a un empleado.
+        inexistente = self.solicitar("no-existe@example.com")
+
+        self.assertEqual(respuesta.json(), inexistente.json())
+
+    def test_superusuario_con_cliente_no_puede_recuperar(self):
+        self.usuario.is_superuser = True
+        self.usuario.save(update_fields=["is_superuser"])
+
+        token = default_token_generator.make_token(self.usuario)
+
+        respuesta = self.solicitar(self.usuario.email)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+
+        confirmacion = self.confirmar(token)
+
+        self.assertEqual(confirmacion.status_code, 400)
+
+        self.usuario.refresh_from_db()
+        self.assertTrue(
+            self.usuario.check_password("ClaveAnterior!8294")
+        )
+
+    def test_token_anterior_a_alta_empleado_es_rechazado(self):
+        # El token se genera cuando todavía es un cliente normal.
+        token = default_token_generator.make_token(self.usuario)
+
+        # Posteriormente, el usuario pasa a tener ficha de empleado.
+        Empleado.objects.create(
+            usuario=self.usuario,
+            nombre="Nuevo",
+            apellido="Empleado",
+            estado=True,
+        )
+
+        respuesta = self.confirmar(token)
+
+        self.assertEqual(respuesta.status_code, 400)
+
+        self.usuario.refresh_from_db()
+
+        self.assertTrue(
+            self.usuario.check_password("ClaveAnterior!8294")
+        )
+
     def test_password_insegura_es_rechazada(self):
         token = default_token_generator.make_token(self.usuario)
 
