@@ -110,12 +110,25 @@ class MiEnvioSerializer(serializers.ModelSerializer):
 
 class MiDetalleCompraSerializer(serializers.ModelSerializer):
     producto_nombre = serializers.CharField(source="producto.nombre", read_only=True)
+    marca_nombre = serializers.CharField(source="producto.marca.nombre", read_only=True)
+    volumen = serializers.CharField(source="producto.volumen", read_only=True)
+    imagen = serializers.SerializerMethodField()
 
     class Meta:
         model = DetalleVenta
-        fields = ["producto", "producto_nombre", "cantidad", "precio_unitario",
-                  "descuento_aplicado", "subtotal"]
+        fields = ["producto", "producto_nombre", "marca_nombre", "volumen", "imagen",
+                  "cantidad", "precio_unitario", "descuento_aplicado", "subtotal"]
         read_only_fields = fields
+
+    def get_imagen(self, detalle):
+        """URL de la foto principal (la misma que muestra la tienda), o None si no tiene fotos."""
+        imagenes = list(detalle.producto.imagenes.all())  # viene del prefetch de la vista
+        if not imagenes:
+            return None
+        principal = next((imagen for imagen in imagenes if imagen.es_principal), imagenes[0])
+        request = self.context.get("request")
+        url = principal.imagen.url
+        return request.build_absolute_uri(url) if request else url
 
 
 class MiCompraSerializer(serializers.ModelSerializer):
