@@ -49,6 +49,12 @@ services:
       MP_COSTO_ENVIO: ${MP_COSTO_ENVIO:-0}
       FRONT_URL: ${FRONT_URL:-}
       BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-}
+      # Recuperación de contraseñas
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      DEFAULT_FROM_EMAIL: "${DEFAULT_FROM_EMAIL:-Guinda Perfumería <no-responder@guinda.local>}"
+
     depends_on:
       - db
 
