@@ -5,11 +5,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from rest_framework.exceptions import PermissionDenied
+from api.serializers import ProductoSerializer
 
 from core.mixins import BajaLogicaMixin
 from . import services
 from .models import Cliente
 from .serializers import (
+    AgregarFavoritoSerializer,
     CambiarMiPasswordSerializer,
     ClienteSerializer,
     EditarMiPerfilSerializer,
@@ -95,3 +97,63 @@ class CambiarMiPasswordAPIView(APIView):
             nueva=entrada.validated_data["password_nueva"],
         )
         return Response({"mensaje": "Contraseña actualizada."}, status=status.HTTP_200_OK)
+
+
+# ---------- Mis favoritos ----------
+
+class MisFavoritosAPIView(APIView):
+    """
+    GET: lista los productos favoritos del cliente.
+    POST: agrega un producto a favoritos.
+    """
+    permission_classes = [EsCliente]
+
+    def get(self, request):
+        productos = services.productos_favoritos(
+            cliente=request.user.cliente
+        )
+
+        return Response(
+            ProductoSerializer(
+                productos,
+                many=True,
+                context={"request": request}
+            ).data
+        )
+
+    def post(self, request):
+        entrada = AgregarFavoritoSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+
+        producto = entrada.validated_data["producto"]
+
+        creado = services.agregar_favorito(
+            cliente=request.user.cliente,
+            producto=producto
+        )
+
+        return Response(
+            {"producto": producto.pk, "favorito": True},
+            status=(
+                status.HTTP_201_CREATED
+                if creado
+                else status.HTTP_200_OK
+            )
+        )
+
+
+class MiFavoritoAPIView(APIView):
+    """
+    DELETE: elimina un producto de los favoritos del cliente.
+    """
+    permission_classes = [EsCliente]
+
+    def delete(self, request, id_producto):
+        services.quitar_favorito(
+            cliente=request.user.cliente,
+            id_producto=id_producto
+        )
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT
+        )

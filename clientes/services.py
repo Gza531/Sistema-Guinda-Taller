@@ -7,7 +7,11 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
-from .models import Cliente
+from django.db.models import Exists, Max, OuterRef
+
+from catalogo.models import Producto
+from stock.models import Stock
+from .models import Cliente, Favorito
 
 
 Usuario = get_user_model()
@@ -224,3 +228,47 @@ def cambiar_mi_password(*, usuario, actual, nueva):
 
     usuario.set_password(nueva)
     usuario.save(update_fields=["password"])
+
+# ---------- Mis favoritos ----------
+
+def productos_favoritos(*, cliente):
+    """
+    Devuelve los favoritos activos del cliente, el último agregado primero.
+    Incluye marca, categoría, imágenes y disponibilidad.
+    """
+    return (
+        Producto.objects
+        .filter(favoritos__cliente=cliente, estado=True)
+        .annotate(fecha_favorito=Max("favoritos__fecha_agregado"))
+        .annotate(
+            disponible=Exists(
+                Stock.objects.filter(
+                    producto=OuterRef("pk"),
+                    cantidad_actual__gt=0
+                )
+            )
+        )
+        .select_related("marca", "categoria")
+        .prefetch_related("imagenes")
+        .order_by("-fecha_favorito", "-id_producto")
+    )
+
+
+def agregar_favorito(*, cliente, producto):
+    """
+    Agrega el producto sin duplicarlo.
+    Devuelve True si es nuevo y False si ya existía.
+    """
+    _, creado = Favorito.objects.get_or_create(
+        cliente=cliente,
+        producto=producto
+    )
+    return creado
+
+
+def quitar_favorito(*, cliente, id_producto):
+    """Elimina el favorito del cliente, si existe."""
+    Favorito.objects.filter(
+        cliente=cliente,
+        producto_id=id_producto
+    ).delete()

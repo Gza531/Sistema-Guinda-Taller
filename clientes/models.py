@@ -89,3 +89,44 @@ class Cliente(models.Model):
     @property
     def es_consumidor_final(self):
         return self.pk == Cliente.consumidor_final().pk
+
+
+class Favorito(models.Model):
+    """
+    Relación entre un cliente y un producto marcado como favorito.
+    """
+
+    id_favorito = models.AutoField(
+        primary_key=True
+    )
+
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.CASCADE,
+        db_column="id_cliente",
+        related_name="favoritos"
+    )
+
+    producto = models.ForeignKey(
+        "catalogo.Producto",
+        on_delete=models.CASCADE,
+        db_column="id_producto",
+        related_name="favoritos"
+    )
+
+    fecha_agregado = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        db_table = "favoritos"
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cliente", "producto"],
+                name="favorito_unico_por_cliente",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.cliente} → {self.producto}"
