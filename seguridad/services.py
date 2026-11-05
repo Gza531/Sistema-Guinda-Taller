@@ -26,26 +26,35 @@ Usuario = get_user_model()
 
 # ---------- Ayudas ----------
 
+
+# Sirve para identificar si el usuario es superusuario o pertenece al rol Dueña
+
 def _es_duena(usuario):
     return usuario.is_superuser or DUENA in roles_de(usuario)
 
+
+# Devolver un conjunto de roles
 
 def _roles_del_empleado(empleado):
     if not empleado.usuario:
         return set()
     return set(empleado.usuario.groups.values_list("name", flat=True))
 
+# Bloquear la petición si se quiere modificar a la dueña pero no sos dueña ni superusuario
 
 def _verificar_puede_gestionar(*, actor, empleado):
     """Una Encargada no puede tocar a un empleado que es Dueña."""
     if DUENA in _roles_del_empleado(empleado) and not _es_duena(actor):
         raise PermissionDenied("Solo la Dueña puede modificar a otra Dueña.")
 
+# Se bloquea la acción si es la misma cuenta
 
 def _verificar_no_es_uno_mismo(*, actor, empleado, accion):
     if empleado.usuario_id and empleado.usuario_id == actor.pk:
         raise PermissionDenied(f"No podés {accion} tu propio usuario.")
 
+# Revisa si los roles solicitados son válidos y si el actor puede asignarlos
+# Si está tdoo bien, devuelve los grupos de Django correspondientes
 
 def _grupos(*, actor, roles):
     """Valida la lista de roles y devuelve los grupos."""
@@ -62,6 +71,7 @@ def _grupos(*, actor, roles):
 
     return list(Group.objects.filter(name__in=roles))
 
+#Revisar si una contraseña cumple nuestras reglas, se utiliza el validador de Django
 
 def _validar_password(password, usuario=None):
     try:
@@ -71,6 +81,10 @@ def _validar_password(password, usuario=None):
 
 
 # ---------- Casos de uso ----------
+
+# Validamos el nombre de usuario, contraseña y roles
+# Creamos la cuenta con sus roles y se vincula a la ficha del empleado
+# Si el alta falla, se deshacen los cambios gracias al Transaction.atomic
 
 @transaction.atomic
 def crear_empleado(*, actor, username, password, roles, nombre, apellido,
@@ -91,6 +105,10 @@ def crear_empleado(*, actor, username, password, roles, nombre, apellido,
         usuario=usuario, nombre=nombre, apellido=apellido,
         dni=dni, telefono=telefono, email=email,
     )
+
+# Actualiza la ficha del empleado y sincroniza los datos de su cuenta
+# Si se solicita y está permitido, cambia sus roles o reactiva su acceso
+# Bloquea la ficha durante la edición y deshace cambios si algo falla
 
 
 @transaction.atomic
@@ -131,6 +149,8 @@ def actualizar_empleado(*, actor, empleado, datos):
     return empleado
 
 
+# Dá de baja al empleado y deshabilita su cuenta si es que tiene una asociada
+
 @transaction.atomic
 def dar_de_baja(*, actor, empleado):
     empleado = Empleado.objects.select_for_update().get(pk=empleado.pk)
@@ -146,6 +166,9 @@ def dar_de_baja(*, actor, empleado):
 
     return empleado
 
+
+# Se verifica que el actor pueda gestionar al empleado y si tiene una cuenta
+# Valida la contraseña nueva y guarda el hash en la cuenta del empleado
 
 @transaction.atomic
 def cambiar_password(*, actor, empleado, password):
