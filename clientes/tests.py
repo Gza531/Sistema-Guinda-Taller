@@ -5,6 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from seguridad.models import Empleado
+from ventas.models import Venta
 
 from .models import Cliente
 
@@ -128,11 +129,38 @@ class MiPerfilTests(TestCase):
         )
         self.assertEqual(respuesta.status_code, 400)
 
-    def test_documento_cargado_no_se_cambia(self):
+    def _compra_de_carla(self, estado=Venta.EstadoVenta.REGISTRADA):
+        Venta.objects.create(
+            cliente=self.carla, usuario=self.usuario_carla, tipo=Venta.TipoVenta.ONLINE,
+            estado=estado, total=10000, numero_comprobante="V-00000001",
+        )
+
+    def test_sin_compras_puede_corregir_el_documento(self):
+        self.assertTrue(self._api(self.usuario_carla).get(URL).data["documento_editable"])
+        respuesta = self._api(self.usuario_carla).patch(URL, {"nro_documento": "30111223"}, format="json")
+        self.assertEqual(respuesta.status_code, 200)
+        self.carla.refresh_from_db()
+        self.assertEqual(self.carla.nro_documento, "30111223")
+
+    def test_con_una_compra_el_documento_no_se_cambia(self):
+        self._compra_de_carla()
+        self.assertFalse(self._api(self.usuario_carla).get(URL).data["documento_editable"])
         respuesta = self._api(self.usuario_carla).patch(URL, {"nro_documento": "99999999"}, format="json")
         self.assertEqual(respuesta.status_code, 400)
         self.carla.refresh_from_db()
         self.assertEqual(self.carla.nro_documento, "30111222")
+
+    def test_una_compra_anulada_tambien_bloquea_el_documento(self):
+        self._compra_de_carla(estado=Venta.EstadoVenta.ANULADA)
+        respuesta = self._api(self.usuario_carla).patch(URL, {"nro_documento": "99999999"}, format="json")
+        self.assertEqual(respuesta.status_code, 400)
+
+    def test_con_compras_puede_seguir_editando_lo_demas(self):
+        self._compra_de_carla()
+        respuesta = self._api(self.usuario_carla).patch(
+            URL, {"tipo_documento": "DNI", "nro_documento": "30111222", "telefono": "387"}, format="json"
+        )
+        self.assertEqual(respuesta.status_code, 200)
 
     def test_reenviar_el_mismo_documento_no_molesta(self):
         respuesta = self._api(self.usuario_carla).patch(

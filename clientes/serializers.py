@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from .models import Cliente
 from catalogo.models import Producto
+from .services import documento_editable
 
 
 class ClienteSerializer(serializers.ModelSerializer):
@@ -42,14 +43,19 @@ class ClienteSerializer(serializers.ModelSerializer):
 class MiPerfilSerializer(serializers.ModelSerializer):
     """Salida: lo que el cliente ve de sí mismo (sin datos internos como «estado» o ids)."""
     username = serializers.CharField(source="usuario.username", read_only=True)
+    documento_editable = serializers.SerializerMethodField()
 
     class Meta:
         model = Cliente
         fields = [
             "username", "nombre", "apellido", "email", "telefono", "direccion",
-            "tipo_documento", "nro_documento", "fecha_alta",
+            "tipo_documento", "nro_documento", "fecha_alta", "documento_editable"
         ]
         read_only_fields = fields
+
+    def get_documento_editable(self, cliente):
+        """True mientras no tenga compras: el front muestra los campos o el texto fijo."""
+        return documento_editable(cliente)
 
 
 def _limpiar(valor):
