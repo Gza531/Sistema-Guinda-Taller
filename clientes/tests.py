@@ -1,4 +1,3 @@
-from django.test import TestCase
 
 # Create your tests here.
 from django.contrib.auth import get_user_model
@@ -189,3 +188,138 @@ class CambiarMiPasswordTests(TestCase):
 
     def test_sin_sesion_da_401(self):
         self.assertEqual(APIClient().post(URL_PASSWORD, {}, format="json").status_code, 401)
+
+
+class MisFavoritosTests(TestCase):
+    """/api/clientes/mis-favoritos/: cada cliente ve y edita solo sus favoritos."""
+
+    URL = "/api/clientes/mis-favoritos/"
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+
+        from catalogo.models import Categoria, Marca, Producto
+        from stock.models import Stock
+
+        Usuario = get_user_model()
+
+        cls.usuario_ana = Usuario.objects.create_user(username="ana_fav", password=CLAVE)
+        cls.ana = Cliente.objects.create(nombre="Ana", apellido="Fav", usuario=cls.usuario_ana)
+
+        cls.usuario_carla = Usuario.objects.create_user(username="carla_fav", password=CLAVE)
+        cls.carla = Cliente.objects.create(nombre="Carla", apellido="Fav", usuario=cls.usuario_carla)
+
+        cls.usuario_empleado = Usuario.objects.create_user(username="vende_fav", password=CLAVE)
+        Empleado.objects.create(nombre="Vero", apellido="Fav", usuario=cls.usuario_empleado)
+
+        marca = Marca.objects.create(nombre="Marca Fav")
+        categoria = Categoria.objects.create(nombre="Perfumes Fav")
+
+        def producto(nombre, precio):
+            return Producto.objects.create(
+                nombre=nombre,
+                origen=Producto.OrigenProducto.NACIONAL,
+                precio_venta=Decimal(precio),
+                marca=marca,
+                categoria=categoria,
+                estado=True,
+            )
+
+        cls.perfume = producto("Perfume Uno", "10000.00")
+        cls.crema = producto("Crema Dos", "5000.00")
+        Stock.objects.create(producto=cls.perfume, ubicacion=Stock.Ubicaciones.DEPOSITO, cantidad_actual=3)
+
+    def _api(self, usuario=None):
+        api = APIClient()
+        if usuario is not None:
+            api.force_authenticate(usuario)
+        return api
+
+    def _ids(self, respuesta):
+        return [p["id_producto"] for p in respuesta.data]
+
+    # ---------- permisos
+
+    def test_sin_sesion_401(self):
+        self.assertEqual(self._api().get(self.URL).status_code, 401)
+
+    def test_personal_403(self):
+        api = self._api(self.usuario_empleado)
+        self.assertEqual(api.get(self.URL).status_code, 403)
+        self.assertEqual(api.post(self.URL, {"producto": self.perfume.pk}, format="json").status_code, 403)
+
+    # ---------- agregar, listar y quitar
+
+    def test_sin_favoritos_lista_vacia(self):
+        respuesta = self._api(self.usuario_ana).get(self.URL)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.data, [])
+
+    def test_agregar_no_duplica(self):
+        api = self._api(self.usuario_ana)
+
+        primera = api.post(self.URL, {"producto": self.perfume.pk}, format="json")
+        segunda = api.post(self.URL, {"producto": self.perfume.pk}, format="json")
+
+        self.assertEqual(primera.status_code, 201)
+        self.assertEqual(segunda.status_code, 200)
+        self.assertEqual(self._ids(api.get(self.URL)), [self.perfume.pk])
+
+    def test_lista_trae_los_datos_de_la_tarjeta_y_el_ultimo_primero(self):
+        api = self._api(self.usuario_ana)
+        api.post(self.URL, {"producto": self.perfume.pk}, format="json")
+        api.post(self.URL, {"producto": self.crema.pk}, format="json")
+
+        respuesta = api.get(self.URL)
+
+        self.assertEqual(self._ids(respuesta), [self.crema.pk, self.perfume.pk])
+        perfume = respuesta.data[1]
+        for campo in ("nombre", "precio_venta", "precio_promocional", "imagen", "disponible", "marca_nombre"):
+            self.assertIn(campo, perfume)
+        self.assertTrue(perfume["disponible"])
+        self.assertFalse(respuesta.data[0]["disponible"])
+
+    def test_quitar(self):
+        api = self._api(self.usuario_ana)
+        api.post(self.URL, {"producto": self.perfume.pk}, format="json")
+
+        self.assertEqual(api.delete(f"{self.URL}{self.perfume.pk}/").status_code, 204)
+        self.assertEqual(api.delete(f"{self.URL}{self.perfume.pk}/").status_code, 204)  # ya no estaba
+        self.assertEqual(api.get(self.URL).data, [])
+
+    # ---------- validaciones
+
+    def test_producto_inexistente_o_dado_de_baja_400(self):
+        api = self._api(self.usuario_ana)
+        self.assertEqual(api.post(self.URL, {"producto": 999999}, format="json").status_code, 400)
+
+        self.crema.estado = False
+        self.crema.save(update_fields=["estado"])
+        self.assertEqual(api.post(self.URL, {"producto": self.crema.pk}, format="json").status_code, 400)
+
+    def test_producto_dado_de_baja_despues_no_aparece(self):
+        api = self._api(self.usuario_ana)
+        api.post(self.URL, {"producto": self.crema.pk}, format="json")
+
+        self.crema.estado = False
+        self.crema.save(update_fields=["estado"])
+
+        self.assertEqual(api.get(self.URL).data, [])
+
+    # ---------- cada cliente, lo suyo
+
+    def test_cada_cliente_ve_y_quita_solo_lo_suyo(self):
+        ana = self._api(self.usuario_ana)
+        carla = self._api(self.usuario_carla)
+        ana.post(self.URL, {"producto": self.perfume.pk}, format="json")
+
+        self.assertEqual(carla.get(self.URL).data, [])
+
+        # Carla "quita" el perfume: a Ana no le cambia nada
+        self.assertEqual(carla.delete(f"{self.URL}{self.perfume.pk}/").status_code, 204)
+        self.assertEqual(self._ids(ana.get(self.URL)), [self.perfume.pk])
+
+        # El mismo producto puede ser favorito de las dos
+        carla.post(self.URL, {"producto": self.perfume.pk}, format="json")
+        self.assertEqual(self._ids(carla.get(self.URL)), [self.perfume.pk])

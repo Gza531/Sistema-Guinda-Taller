@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from .models import Cliente
+from catalogo.models import Producto
 
 
 class ClienteSerializer(serializers.ModelSerializer):
@@ -114,3 +115,13 @@ class CambiarMiPasswordSerializer(serializers.Serializer):
         if datos["password_nueva"] != datos["password_repetida"]:
             raise serializers.ValidationError({"password_repetida": "Las contraseñas no coinciden."})
         return datos
+
+
+# ---------- Mis favoritos ----------
+
+class AgregarFavoritoSerializer(serializers.Serializer):
+    """Valida el producto que el cliente desea guardar."""
+
+    producto = serializers.PrimaryKeyRelatedField(
+        queryset=Producto.objects.filter(estado=True)
+    )
