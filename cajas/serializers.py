@@ -86,7 +86,11 @@ class AbrirCajaSerializer(serializers.Serializer):
 class CerrarCajaSerializer(serializers.Serializer):
     """Datos que manda el frontend para cerrar una caja."""
 
-    monto_final = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=0)
+    # Obligatorio solo en una caja presencial (lo controla services.cerrar_caja).
+    # En la caja online no se manda: no maneja efectivo.
+    monto_final = serializers.DecimalField(
+        max_digits=14, decimal_places=2, min_value=0, required=False, allow_null=True
+    )
     observaciones = serializers.CharField(max_length=250, required=False, allow_blank=True)
 
 
@@ -99,6 +103,7 @@ class TotalMetodoSerializer(serializers.Serializer):
 class ArqueoSerializer(serializers.Serializer):
     """Formatea el resultado de services.resumen_sesion (no es un modelo)."""
 
+    tipo_caja = serializers.CharField()   # "PRESENCIAL" | "ONLINE": el panel arma el cierre según el tipo
     monto_inicial = serializers.DecimalField(max_digits=14, decimal_places=2)
     ingresos_efectivo = serializers.DecimalField(max_digits=14, decimal_places=2)
     egresos_efectivo = serializers.DecimalField(max_digits=14, decimal_places=2)

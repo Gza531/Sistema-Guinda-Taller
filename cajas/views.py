@@ -148,14 +148,18 @@ class SesionCajaViewSet(mixins.ListModelMixin,
 
     @action(detail=True, methods=["post"])
     def cerrar(self, request, pk=None):
-        """POST /sesiones/{id}/cerrar/ : {"monto_final": "15800.00", "observaciones": "..."}"""
+        """
+        POST /sesiones/{id}/cerrar/
+          caja presencial: {"monto_final": "15800.00", "observaciones": "..."}
+          caja online:     {"observaciones": "..."}  (no maneja efectivo)
+        """
         sesion = self.get_object()
         entrada = CerrarCajaSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
         d = entrada.validated_data
         sesion = services.cerrar_caja(
             sesion=sesion,
-            monto_final=d["monto_final"],
+            monto_final=d.get("monto_final"),
             observaciones=d.get("observaciones") or None,
         )
         return Response({

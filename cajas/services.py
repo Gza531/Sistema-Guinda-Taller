@@ -35,6 +35,11 @@ def abrir_caja(*, caja, usuario, monto_inicial, observaciones=None):
     if sesion_abierta(caja):
         raise ValidationError({"caja": f"La caja «{caja}» ya está abierta."})
 
+    if caja.tipo_caja == Caja.TipoCaja.ONLINE and monto_inicial != 0:
+        raise ValidationError({
+            "monto_inicial": "La caja online no maneja efectivo: se abre con monto inicial 0."
+        })
+
     return AperturaCierreCaja.objects.create(
         caja=caja,
         usuario=usuario,
@@ -122,6 +127,7 @@ def resumen_sesion(sesion):
     )
 
     return {
+        "tipo_caja": sesion.caja.tipo_caja,
         "monto_inicial": sesion.monto_inicial,
         "ingresos_efectivo": ingresos_efectivo,
         "egresos_efectivo": egresos_efectivo,
@@ -136,16 +142,24 @@ def resumen_sesion(sesion):
 
 
 @transaction.atomic
-def cerrar_caja(*, sesion, monto_final, observaciones=None):
+def cerrar_caja(*, sesion, monto_final=None, observaciones=None):
     """
-    Cierra una sesión de caja con el efectivo contado.
+    Cierra una sesión de caja.
+    - Caja presencial: con el efectivo contado (monto_final), para el arqueo.
+    - Caja online: no maneja efectivo, así que no se cuenta nada; se cierra
+      conciliando los cobros de cada método de pago con su reporte (Mercado Pago, tarjetas).
     RN-24: una sesión cerrada no se reabre ni se modifica.
     La observación es opcional, aunque haya diferencia.
     """
-    sesion = AperturaCierreCaja.objects.select_for_update().get(pk=sesion.pk)
+    sesion = AperturaCierreCaja.objects.select_for_update().select_related("caja").get(pk=sesion.pk)
 
     if sesion.fecha_cierre is not None:
         raise ValidationError({"sesion": "Esta sesión de caja ya está cerrada."})
+
+    if sesion.caja.tipo_caja == Caja.TipoCaja.ONLINE:
+        monto_final = Decimal("0.00")
+    elif monto_final is None:
+        raise ValidationError({"monto_final": "Ingrese el efectivo contado."})
 
     if observaciones:
         texto = f"Cierre: {observaciones}"
@@ -185,6 +199,11 @@ def registrar_movimiento_caja(*, caja, tipo_movimiento, monto, metodo_pago,
 
     if monto <= 0:
         raise ValidationError({"monto": "El monto debe ser mayor que cero."})
+
+    if caja.tipo_caja == Caja.TipoCaja.ONLINE and metodo_pago.es_efectivo:
+        raise ValidationError({
+            "metodo_pago": f"La caja «{caja}» es online y no maneja efectivo. Use otro método o una caja presencial."
+        })
 
     
     # Un egreso en efectivo no puede superar el efectivo que hay en la caja.
