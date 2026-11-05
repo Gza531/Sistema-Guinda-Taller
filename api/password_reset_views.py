@@ -16,6 +16,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from clientes.models import Cliente
+from django.template.loader import render_to_string
 
 
 logger = logging.getLogger(__name__)
@@ -118,13 +119,22 @@ class RecuperarPasswordAPIView(APIView):
             )
 
             try:
+                mensaje_html = render_to_string(
+                    "emails/recuperar_password.html",
+                    {
+                        "enlace": enlace,
+                    },
+                )
+
                 send_mail(
                     asunto,
                     mensaje,
                     settings.DEFAULT_FROM_EMAIL,
                     [usuario.email],
                     fail_silently=False,
+                    html_message=mensaje_html,
                 )
+
             except Exception:
                 logger.exception(
                     "No se pudo enviar un correo de recuperación."
