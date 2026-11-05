@@ -134,15 +134,25 @@ def registrar_cliente(
 # ---------- Mi perfil (el cliente edita sus propios datos) ----------
 
 DOCUMENTO_FIJO = (
-    "El documento ya está cargado y no se puede cambiar desde la tienda. "
-    "Si hay un error, consultá en el local."
+    "Ya tenés compras registradas con este documento, así que no se puede cambiar "
+    "desde la tienda. Si hay un error, consultá en el local."
 )
+
+
+def documento_editable(cliente):
+    """
+    El cliente puede cargar o corregir su documento desde la tienda hasta su primera compra.
+    Las ventas no copian el documento: apuntan al cliente. Si lo cambiara después de comprar,
+    los comprobantes ya emitidos pasarían a mostrar el documento nuevo.
+    Cuenta cualquier venta, también las anuladas (el comprobante ya se emitió).
+    """
+    return not cliente.nro_documento or not cliente.venta_set.exists()
 
 
 def _validar_documento(*, cliente, datos):
     """
-    El documento se puede cargar una sola vez desde la tienda.
-    Si ya tiene uno, solo se acepta el mismo (el formulario lo reenvía tal cual).
+    Reglas del documento al editar el perfil.
+    Si llega el mismo que ya tiene, no hay nada que validar (el formulario lo reenvía tal cual).
     """
     if "tipo_documento" not in datos and "nro_documento" not in datos:
         return
@@ -150,10 +160,11 @@ def _validar_documento(*, cliente, datos):
     tipo = datos.get("tipo_documento", cliente.tipo_documento)
     nro = datos.get("nro_documento", cliente.nro_documento)
 
-    if cliente.nro_documento:
-        if (tipo, nro) != (cliente.tipo_documento, cliente.nro_documento):
-            raise ValidationError({"nro_documento": DOCUMENTO_FIJO})
+    if (tipo, nro) == (cliente.tipo_documento, cliente.nro_documento):
         return
+
+    if not documento_editable(cliente):
+        raise ValidationError({"nro_documento": DOCUMENTO_FIJO})
 
     if bool(tipo) != bool(nro):
         raise ValidationError({
