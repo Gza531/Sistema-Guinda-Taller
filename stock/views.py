@@ -1,4 +1,4 @@
-from django.db.models import F
+from django.db.models import F, OuterRef, Subquery
 from rest_framework import mixins, status, viewsets
 from core.permissions import PermisoPorAccion
 from rest_framework.response import Response
@@ -14,7 +14,21 @@ class StockViewSet(viewsets.ReadOnlyModelViewSet):
     permisos = {"list": "ver_stock", "retrieve": "ver_stock"}
 
     def get_queryset(self):
-        stock = Stock.objects.select_related("producto").order_by("producto__nombre", "ubicacion")
+        # Último movimiento de cada registro: lo calcula la base en la misma consulta
+        # (una subconsulta por columna), en vez de que el front baje todo el historial.
+        ultimo = (
+            MovimientoStock.objects
+            .filter(stock=OuterRef("pk"))
+            .order_by("-fecha", "-id_movimiento_stock")
+        )
+        stock = (
+            Stock.objects.select_related("producto")
+            .annotate(
+                ultimo_tipo=Subquery(ultimo.values("tipo_movimiento")[:1]),
+                ultima_cantidad=Subquery(ultimo.values("cantidad")[:1]),
+            )
+            .order_by("producto__nombre", "ubicacion")
+        )
         filtros = self.request.query_params
 
         if filtros.get("ubicacion"):

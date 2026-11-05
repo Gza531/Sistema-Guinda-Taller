@@ -121,6 +121,16 @@ def puede(usuario, permiso):
         raise KeyError(f"El permiso «{permiso}» no está en la matriz.")
     return bool(roles_de(usuario) & MATRIZ[permiso])
 
+def permisos_de(usuario):
+    """
+    Los permisos de la matriz que tiene el usuario, ordenados alfabéticamente.
+    El front los usa para mostrar u ocultar secciones y botones del panel.
+    Un cliente (o alguien sin sesión) no tiene ninguno.
+    """
+    if not es_personal(usuario):
+        return []
+    return sorted(permiso for permiso in MATRIZ if puede(usuario, permiso))
+
 
 class PermisoPorAccion(BasePermission):
     """

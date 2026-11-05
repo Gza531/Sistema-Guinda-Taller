@@ -19,7 +19,7 @@ from catalogo.models import (
 from core.mixins import BajaLogicaMixin
 from auditoria.models import Auditoria
 from auditoria.services import registrar as registrar_auditoria
-from core.permissions import LecturaPublicaEscrituraPorRol, es_personal
+from core.permissions import LecturaPublicaEscrituraPorRol, es_personal, permisos_de
 
 from django.contrib.auth import authenticate, get_user_model
 
@@ -363,7 +363,8 @@ class PerfilAPIView(APIView):
                 "username": usuario.username,
                 "es_empleado": es_empleado,
                 "es_superusuario": usuario.is_superuser,
-                "roles": roles
+                "roles": roles,
+                "permisos" : permisos_de(usuario),
             },
             status=status.HTTP_200_OK
         )

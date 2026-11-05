@@ -6,6 +6,7 @@ from .models import MovimientoStock, Stock
 
 class StockSerializer(serializers.ModelSerializer):
     producto_nombre = serializers.CharField(source="producto.nombre", read_only=True)
+    ultima_entrada = serializers.SerializerMethodField()
 
     class Meta:
         model = Stock
@@ -17,8 +18,19 @@ class StockSerializer(serializers.ModelSerializer):
             "cantidad_actual",
             "stock_minimo",
             "ultima_actualizacion",
+            "ultima_entrada"
         ]
         read_only_fields = ["cantidad_actual", "ultima_actualizacion"]
+
+    def get_ultima_entrada(self, stock):
+        """
+        Cuánto entró en el último movimiento, si ese movimiento fue una ENTRADA
+        (el panel lo muestra en verde: 14 +5). Si fue otra cosa o no hubo, None.
+        Los datos vienen anotados por StockViewSet.get_queryset.
+        """
+        if getattr(stock, "ultimo_tipo", None) == MovimientoStock.Movimientos.ENTRADA:
+            return stock.ultima_cantidad
+        return None
 
 
 class MovimientoStockSerializer(serializers.ModelSerializer):
