@@ -1,4 +1,3 @@
-
 import re
 import unicodedata
 
@@ -9,7 +8,7 @@ def validar_nombre_persona(valor, campo):
     texto = " ".join(unicodedata.normalize("NFC", valor).split())
 
     if not texto:
-        raise serializers.ValidationError(f"Ingrese su {campo}.")
+        raise serializers.ValidationError(f"Ingrese el {campo}.")
 
     partes = re.split(r"[ '\u2019-]", texto)
 
