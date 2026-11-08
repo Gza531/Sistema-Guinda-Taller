@@ -92,13 +92,16 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     ).prefetch_related(
         "imagenes"
     ).annotate(
-       disponible=Exists(
-           Stock.objects.filter(
+        # "disponible" = se puede comprar en la tienda online, que vende del Depósito.
+        # Lo que hay en la Sucursal (salón) no cuenta: es para la venta presencial.
+        disponible=Exists(
+            Stock.objects.filter(
                 producto=OuterRef("pk"),
-                cantidad_actual__gt=0
+                ubicacion=Stock.Ubicaciones.DEPOSITO,
+                cantidad_actual__gt=0,
+            )
         )
     )
-)
 
     serializer_class = ProductoSerializer
 

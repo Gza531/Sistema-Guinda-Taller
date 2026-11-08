@@ -434,6 +434,30 @@ class CheckoutStockTests(TestCase):
         self.stock.refresh_from_db()
         self.assertEqual(self.stock.cantidad_actual, 3)
 
+    def test_el_mensaje_de_stock_es_para_el_cliente(self):
+        """Sin ubicaciones ni traslados: eso es interno del local."""
+        Stock.objects.create(
+            producto=self.producto, ubicacion=Stock.Ubicaciones.SUCURSAL, cantidad_actual=8,
+        )
+        respuesta = self.comprar(5)
+        mensaje = " ".join(respuesta.data["items"])
+        self.assertIn("solo quedan 3 unidades", mensaje)
+        self.assertNotIn("traslado", mensaje)
+        self.assertNotIn("Sucursal", mensaje)
+
+    def test_disponible_en_la_tienda_cuenta_solo_el_deposito(self):
+        sin_deposito = Producto.objects.create(
+            nombre="Solo en el salón", origen=Producto.OrigenProducto.NACIONAL,
+            precio_venta=Decimal("5000.00"), marca=self.producto.marca,
+            categoria=self.producto.categoria, estado=True,
+        )
+        Stock.objects.create(
+            producto=sin_deposito, ubicacion=Stock.Ubicaciones.SUCURSAL, cantidad_actual=8,
+        )
+        catalogo = APIClient()
+        self.assertFalse(catalogo.get(f"/api/productos/{sin_deposito.pk}/").data["disponible"])
+        self.assertTrue(catalogo.get(f"/api/productos/{self.producto.pk}/").data["disponible"])
+
     def test_stock_suficiente_no_descuenta_unidades(self):
         """Iniciar el checkout no reserva ni descuenta stock."""
 

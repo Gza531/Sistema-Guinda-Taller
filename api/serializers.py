@@ -79,9 +79,11 @@ class ProductoSerializer(serializers.ModelSerializer):
         if hasattr(obj, "disponible"):
             return obj.disponible
 
+        # Igual que en ProductoViewSet: disponible para la tienda = hay en el Depósito
         return Stock.objects.filter(
             producto=obj,
-            cantidad_actual__gt=0
+            ubicacion=Stock.Ubicaciones.DEPOSITO,
+            cantidad_actual__gt=0,
         ).exists()
 
     def get_imagen(self, obj):
