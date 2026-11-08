@@ -22,7 +22,7 @@ from stock.services import registrar_entrada, registrar_salida
 from .models import DetalleVenta, Venta
 
 
-logger = logging.getLogger("pagos.devoluciones")
+logger = logging.Logger("pagos.devoluciones")
 
 CERO = Decimal("0.00")
 SALON = Stock.Ubicaciones.SUCURSAL
@@ -62,20 +62,25 @@ def _agrupar(items):
     return cantidades
 
 
-def _verificar_stock(cantidades, ubicacion):
-    """Antes de escribir nada, revisa que alcance el stock de la ubicación que corresponde."""
+def _verificar_stock(cantidades, ubicacion, *, para_cliente=False):
+    """
+    Antes de escribir nada, revisa que alcance el stock de la ubicación que corresponde.
+
+    para_cliente=True (checkout de la tienda): el mensaje lo lee el cliente, así que no
+    menciona ubicaciones ni traslados, que son cosas internas del local.
+    """
     otra = DEPOSITO if ubicacion == SALON else SALON
     faltantes = []
     for producto, cantidad in cantidades.items():
         hay = _stock_en(producto, ubicacion)
-        if cantidad > hay:
-            en_otra = _stock_en(producto, otra)
-            aviso = f" (en {NOMBRE_UBICACION[otra]} hay {en_otra}: haga un traslado)" if en_otra else ""
+        if cantidad > hay and para_cliente:
             faltantes.append(
-                f"«{producto}»: hay {hay} en {NOMBRE_UBICACION[ubicacion]} y se piden {cantidad}{aviso}."
+                f"«{producto}»: no hay stock disponible para la compra online."
+                if hay == 0 else
+                f"«{producto}»: solo quedan {hay} unidades disponibles para la compra online."
             )
-    if faltantes:
-        raise ValidationError({"items": faltantes})
+        elif cantidad > hay:
+            en_otra = _stock_en(producto, otra)
 
 
 def _lineas_con_precios(cantidades, precios):

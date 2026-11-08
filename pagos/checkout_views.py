@@ -62,7 +62,8 @@ class CheckoutAPIView(APIView):
 
         # Reutilizamos las reglas de Ventas.
         cantidades = _agrupar(datos["items"])
-        _verificar_stock(cantidades, DEPOSITO)
+        # La tienda vende del Depósito; el mensaje es para el cliente (sin traslados)
+        _verificar_stock(cantidades, DEPOSITO, para_cliente=True)
         lineas = _armar_lineas(cantidades)
 
         entrega = datos["entrega"]
