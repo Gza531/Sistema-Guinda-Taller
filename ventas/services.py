@@ -22,7 +22,7 @@ from stock.services import registrar_entrada, registrar_salida
 from .models import DetalleVenta, Venta
 
 
-logger = logging.Logger("pagos.devoluciones")
+logger = logging.getLogger("pagos.devoluciones")
 
 CERO = Decimal("0.00")
 SALON = Stock.Ubicaciones.SUCURSAL
@@ -81,6 +81,12 @@ def _verificar_stock(cantidades, ubicacion, *, para_cliente=False):
             )
         elif cantidad > hay:
             en_otra = _stock_en(producto, otra)
+            aviso = f" (en {NOMBRE_UBICACION[otra]} hay {en_otra}: haga un traslado)" if en_otra else ""
+            faltantes.append(
+                f"«{producto}»: hay {hay} en {NOMBRE_UBICACION[ubicacion]} y se piden {cantidad}{aviso}."
+            )
+    if faltantes:
+        raise ValidationError({"items": faltantes})
 
 
 def _lineas_con_precios(cantidades, precios):
