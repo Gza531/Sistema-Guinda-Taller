@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 
 from clientes.models import Cliente
+from clientes.validaciones import validar_nombre_persona
 from stock.models import Stock
 from promociones.services import descuento_vigente
 
@@ -138,6 +139,12 @@ class RegistroClienteSerializer(serializers.Serializer):
         allow_blank=True,
         allow_null=True
     )
+
+    def validate_nombre(self, valor):
+        return validar_nombre_persona(valor, "nombre")
+
+    def validate_apellido(self, valor):
+        return validar_nombre_persona(valor, "apellido")
 
     def validate_username(self, value):
         if Usuario.objects.filter(username__iexact=value).exists():
