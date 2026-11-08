@@ -368,6 +368,17 @@ class PerfilAPIView(APIView):
                 "es_superusuario": usuario.is_superuser,
                 "roles": roles,
                 "permisos" : permisos_de(usuario),
+                "empleado": (
+                    {
+                        "nombre": usuario.empleado.nombre,
+                        "apellido": usuario.empleado.apellido,
+                        "dni": usuario.empleado.dni,
+                        "email": usuario.empleado.email,
+                        "telefono": usuario.empleado.telefono,
+                        "fecha_alta": usuario.empleado.fecha_alta,
+                    }
+                    if es_empleado else None
+                ),
             },
             status=status.HTTP_200_OK
         )
