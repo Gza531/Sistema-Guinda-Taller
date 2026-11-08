@@ -3,6 +3,7 @@ from rest_framework import serializers
 from .models import Cliente
 from catalogo.models import Producto
 from .services import documento_editable
+from .validaciones import validar_nombre_persona
 
 
 class ClienteSerializer(serializers.ModelSerializer):
@@ -14,6 +15,12 @@ class ClienteSerializer(serializers.ModelSerializer):
             "telefono", "email", "direccion", "fecha_alta", "estado", "usuario",
         ]
         read_only_fields = ["fecha_alta", "usuario"]
+
+    def validate_nombre(self, valor):
+        return validar_nombre_persona(valor, "nombre")
+
+    def validate_apellido(self, valor):
+        return validar_nombre_persona(valor, "apellido")
 
     def validate_nro_documento(self, valor):
         # Un documento vacío se guarda como NULL, no como texto vacío
@@ -78,10 +85,10 @@ class EditarMiPerfilSerializer(serializers.Serializer):
     nro_documento = serializers.CharField(max_length=13, required=False, allow_blank=True, allow_null=True)
 
     def validate_nombre(self, valor):
-        return " ".join(valor.split())
+        return validar_nombre_persona(valor, "nombre")
 
     def validate_apellido(self, valor):
-        return " ".join(valor.split())
+        return validar_nombre_persona(valor, "apellido")
 
     def validate_email(self, valor):
         return valor.strip().lower()
