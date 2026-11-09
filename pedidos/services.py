@@ -163,6 +163,32 @@ def cancelar_pedido(*, pedido, motivo):
     return pedido
 
 
+def cancelar_por_venta_anulada(*, pedido, venta, motivo):
+    """
+    Lo llama anular_venta (ventas/services.py), dentro de su misma transacción.
+
+    El pedido que se concretó en esa venta pasa a Cancelado: el trato se deshizo
+    (la anulación ya devolvió el stock y el dinero). No vuelve a Listo para no
+    entregarlo de nuevo con un stock que ya pudo venderse; si el cliente lo quiere
+    igual, se registra un pedido nuevo.
+    """
+    pedido = Pedido.objects.select_for_update().get(pk=pedido.pk)
+
+    if pedido.estado == E.CANCELADO:
+        return pedido
+
+    nota = f"Cancelado: venta {venta.numero_comprobante} anulada ({motivo})"
+    texto = f"{pedido.observaciones} | {nota}" if pedido.observaciones else nota
+
+    pedido.estado = E.CANCELADO
+    # Las observaciones tienen 500 caracteres: si no entra, se recorta la nota
+    # (no se frena la anulación por un texto largo).
+    pedido.observaciones = texto[:500]
+    pedido.save(update_fields=["estado", "observaciones"])
+
+    return pedido
+
+
 @transaction.atomic
 def entregar_pedido(
     *,
