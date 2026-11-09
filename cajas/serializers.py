@@ -8,6 +8,15 @@ from .services import sesion_abierta
 class MetodoPagoSerializer(serializers.ModelSerializer):
     """Convierte un MetodoPago a JSON (para responder) y valida el JSON que llega (para crear o editar)."""
     del_sistema = serializers.BooleanField(read_only=True)
+    tiene_movimientos = serializers.SerializerMethodField()
+
+    def get_tiene_movimientos(self, metodo):
+        # La lista lo trae calculado por la base (con_movimientos, ver la vista);
+        # al crear o editar se consulta en el momento.
+        valor = getattr(metodo, "con_movimientos", None)
+        if valor is None:
+            valor = MovimientoCaja.objects.filter(metodo_pago=metodo).exists()
+        return valor
 
     def validate_nombre(self, valor):
         valor = valor.strip()
@@ -16,11 +25,20 @@ class MetodoPagoSerializer(serializers.ModelSerializer):
             repetidos = repetidos.exclude(pk=self.instance.pk)
         if repetidos.exists():
             raise serializers.ValidationError("Ya existe un método de pago con ese nombre.")
+
+        # Un método con cobros o pagos registrados no se renombra: el historial
+        # (ventas, compras, arqueos) muestra el nombre actual y cambiaría su significado.
+        if self.instance and valor != self.instance.nombre:
+            if MovimientoCaja.objects.filter(metodo_pago=self.instance).exists():
+                raise serializers.ValidationError(
+                    "Este método ya tiene cobros o pagos registrados: no se puede renombrar. "
+                    "Dalo de baja y creá uno nuevo."
+                )
         return valor
-    
+
     class Meta:
         model = MetodoPago
-        fields = ["id_metodo_pago", "nombre", "estado", "del_sistema"]
+        fields = ["id_metodo_pago", "nombre", "estado", "del_sistema", "tiene_movimientos"]
 
 
 class CajaSerializer(serializers.ModelSerializer):

@@ -127,3 +127,54 @@ class MetodosDelSistemaTests(TestCase):
         filas = self.api.get("/api/cajas/metodos-pago/", {"page_size": 100}).data["results"]
         del_sistema = {f["nombre"] for f in filas if f["del_sistema"]}
         self.assertEqual(del_sistema, {"Efectivo", "Mercado Pago"})
+
+
+class RenombrarMetodoConMovimientosTests(TestCase):
+    """Un método de pago con cobros o pagos registrados no se renombra (sí se puede dar de baja)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.encargada = Usuario.objects.create_user(username="encargada_ren", password="x")
+        Empleado.objects.create(nombre="Eva", apellido="Paz", usuario=cls.encargada)
+        cls.encargada.groups.add(Group.objects.get(name=ENCARGADA))
+
+        cls.usado = MetodoPago.objects.create(nombre="Transferencia")
+        cls.nuevo = MetodoPago.objects.create(nombre="Tarjeta de débto")   # con error de tipeo
+
+        salon = Caja.objects.create(nombre="Salón ren", tipo_caja=Caja.TipoCaja.PRESENCIAL)
+        services.abrir_caja(caja=salon, usuario=cls.encargada, monto_inicial=Decimal("0"))
+        services.registrar_movimiento_caja(
+            caja=salon, tipo_movimiento=MovimientoCaja.TipoMovimiento.INGRESO,
+            monto=Decimal("1000"), metodo_pago=cls.usado, concepto="Cobro de prueba",
+        )
+
+    def setUp(self):
+        self.api = APIClient()
+        self.api.force_authenticate(self.encargada)
+
+    def _patch(self, metodo, datos):
+        return self.api.patch(f"/api/cajas/metodos-pago/{metodo.pk}/", datos, format="json")
+
+    def test_con_movimientos_no_se_renombra(self):
+        respuesta = self._patch(self.usado, {"nombre": "Tarjeta de crédito"})
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("nombre", respuesta.data)
+        self.usado.refresh_from_db()
+        self.assertEqual(self.usado.nombre, "Transferencia")
+
+    def test_con_movimientos_se_puede_dar_de_baja_y_reactivar(self):
+        self.assertEqual(self.api.delete(f"/api/cajas/metodos-pago/{self.usado.pk}/").data["estado"], False)
+        respuesta = self._patch(self.usado, {"nombre": "Transferencia", "estado": True})
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertTrue(respuesta.data["estado"])
+
+    def test_sin_movimientos_se_renombra(self):
+        respuesta = self._patch(self.nuevo, {"nombre": "Tarjeta de débito"})
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.data["nombre"], "Tarjeta de débito")
+
+    def test_la_lista_dice_cuales_tienen_movimientos(self):
+        filas = self.api.get("/api/cajas/metodos-pago/", {"page_size": 100}).data["results"]
+        por_nombre = {f["nombre"]: f["tiene_movimientos"] for f in filas}
+        self.assertTrue(por_nombre["Transferencia"])
+        self.assertFalse(por_nombre["Tarjeta de débto"])
