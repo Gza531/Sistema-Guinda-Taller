@@ -87,3 +87,43 @@ class CajaOnlineSinEfectivoTests(TestCase):
         )
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta.data["arqueo"]["diferencia"], "0.00")
+
+
+class MetodosDelSistemaTests(TestCase):
+    """Efectivo y Mercado Pago los usa el sistema por nombre: no se tocan desde la API."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.encargada = Usuario.objects.create_user(username="encargada_mp", password="x")
+        Empleado.objects.create(nombre="Eva", apellido="Paz", usuario=cls.encargada)
+        cls.encargada.groups.add(Group.objects.get(name=ENCARGADA))
+        cls.transferencia = MetodoPago.objects.create(nombre="Transferencia")
+
+    def setUp(self):
+        self.api = APIClient()
+        self.api.force_authenticate(self.encargada)
+
+    def _url(self, metodo):
+        return f"/api/cajas/metodos-pago/{metodo.pk}/"
+
+    def test_mercado_pago_no_se_renombra_ni_se_da_de_baja(self):
+        mp = MetodoPago.mercado_pago()
+        self.assertEqual(self.api.patch(self._url(mp), {"nombre": "MP"}).status_code, 403)
+        self.assertEqual(self.api.delete(self._url(mp)).status_code, 403)
+        mp.refresh_from_db()
+        self.assertEqual((mp.nombre, mp.estado), ("Mercado Pago", True))
+
+    def test_efectivo_sigue_bloqueado(self):
+        efectivo = MetodoPago.efectivo()
+        self.assertEqual(self.api.delete(self._url(efectivo)).status_code, 403)
+
+    def test_los_demas_se_editan_y_se_dan_de_baja(self):
+        respuesta = self.api.patch(self._url(self.transferencia), {"nombre": "Transferencia bancaria"})
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertFalse(respuesta.data["del_sistema"])
+        self.assertEqual(self.api.delete(self._url(self.transferencia)).data["estado"], False)
+
+    def test_la_lista_marca_los_del_sistema(self):
+        filas = self.api.get("/api/cajas/metodos-pago/", {"page_size": 100}).data["results"]
+        del_sistema = {f["nombre"] for f in filas if f["del_sistema"]}
+        self.assertEqual(del_sistema, {"Efectivo", "Mercado Pago"})
