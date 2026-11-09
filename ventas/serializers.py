@@ -147,7 +147,9 @@ class MiCompraSerializer(serializers.ModelSerializer):
         return sum(detalle.cantidad for detalle in venta.detalleventa_set.all())
 
     def get_envio(self, venta):
-        # Una venta tiene a lo sumo un envío; si no tiene, es retiro en el local (o venta en el local)
+        # Un solo envío activo por venta (si uno vuelve "Devuelto" se puede crear otro):
+        # la vista los ordena del más nuevo al más viejo, así que el primero es el vigente.
+        # Sin envío = retiro en el local (o venta en el local).
         envios = venta.envio_set.all()
         return MiEnvioSerializer(envios[0]).data if envios else None
 

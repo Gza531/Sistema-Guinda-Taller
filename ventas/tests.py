@@ -121,6 +121,34 @@ class MisComprasTests(TestCase):
         self.assertEqual(api.delete(f"{URL}{self.web.pk}/").status_code, 405)
         self.assertEqual(api.post(URL, {}, format="json").status_code, 405)
 
+    def test_con_envio_trae_solo_las_compras_con_envio(self):
+        respuesta = self._cliente_api(self.usuario_ana).get(URL, {"con_envio": "1"})
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual([c["numero_comprobante"] for c in respuesta.data["results"]], ["V-00000001"])
+        envio = respuesta.data["results"][0]["envio"]
+        self.assertEqual((envio["estado"], envio["codigo_seguimiento"]), ("DESPACHADO", "AND-999"))
+
+    def test_con_envio_no_trae_envios_de_otro_cliente(self):
+        Envio.objects.create(venta=self.de_carla, direccion_entrega="Belgrano 9", costo=Decimal("0"))
+        respuesta = self._cliente_api(self.usuario_ana).get(URL, {"con_envio": "1"})
+        self.assertNotIn("V-00000004", [c["numero_comprobante"] for c in respuesta.data["results"]])
+
+    def test_muestra_el_envio_vigente_si_hubo_uno_devuelto(self):
+        venta = self._venta(self.ana, "V-00000005", Venta.TipoVenta.ONLINE, cantidad=1)
+        Envio.objects.create(venta=venta, direccion_entrega="Mitre 123", costo=Decimal("0"),
+                             estado=Envio.EstadoEnvio.DEVUELTO, codigo_seguimiento="VIEJO-1")
+        Envio.objects.create(venta=venta, direccion_entrega="Mitre 123", costo=Decimal("0"),
+                             estado=Envio.EstadoEnvio.EN_TRANSITO, codigo_seguimiento="NUEVO-2")
+
+        filas = self._cliente_api(self.usuario_ana).get(URL, {"con_envio": "1"}).data["results"]
+        de_la_venta = [c for c in filas if c["numero_comprobante"] == "V-00000005"]
+        self.assertEqual(len(de_la_venta), 1)   # una fila por compra, aunque tenga dos envíos
+        self.assertEqual(de_la_venta[0]["envio"]["codigo_seguimiento"], "NUEVO-2")
+
+        detalle = self._cliente_api(self.usuario_ana).get(f"{URL}{venta.pk}/").data
+        self.assertEqual(detalle["envio"]["estado"], "EN_TRANSITO")
+
+
 # ---------------- Anulación con devolución por Mercado Pago ----------------
 
 class AnularVentaMercadoPagoTests(TestCase):
