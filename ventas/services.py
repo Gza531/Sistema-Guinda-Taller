@@ -394,6 +394,13 @@ def anular_venta(*, venta, usuario, motivo):
     venta.observaciones = texto
     venta.save(update_fields=["estado", "observaciones"])
 
+    # Pedido: si la venta salió de un pedido, el pedido queda Cancelado.
+    # Se importa acá adentro porque pedidos/services.py ya importa este archivo
+    # (importarlo arriba armaría un import circular).
+    if venta.pedido_id:
+        from pedidos.services import cancelar_por_venta_anulada
+        cancelar_por_venta_anulada(pedido=venta.pedido, venta=venta, motivo=motivo)
+
      # Último paso, cuando todo lo demás ya salió bien: si se cobró por Mercado Pago,
     # se le devuelve el dinero. Si falla, la transacción deshace stock, caja y envíos.
 
