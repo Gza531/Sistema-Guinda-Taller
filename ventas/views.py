@@ -1,9 +1,12 @@
+from django.db.models import Prefetch
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from core.permissions import EsCliente, PermisoPorAccion
 from rest_framework.response import Response
 
 from . import services
+from envios.models import Envio
+
 from .models import Venta
 from .serializers import (
     AnularVentaSerializer,
@@ -129,8 +132,9 @@ class MisComprasViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Tienda web: las compras del cliente que inició sesión.
 
-    GET /api/ventas/mis-compras/        → listado (paginado, la más nueva primero)
-    GET /api/ventas/mis-compras/{id}/   → detalle con los productos
+    GET /api/ventas/mis-compras/                → listado (paginado, la más nueva primero)
+    GET /api/ventas/mis-compras/?con_envio=1    → solo las que tienen envío ("Mis envíos")
+    GET /api/ventas/mis-compras/{id}/           → detalle con los productos
 
     Muestra todas sus ventas (web y del local), también las anuladas.
     El queryset ya viene filtrado por su cliente: si pide una compra ajena, recibe 404.
@@ -138,16 +142,21 @@ class MisComprasViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [EsCliente]
 
     def get_queryset(self):
-        return (
+        qs = (
             Venta.objects
             .filter(cliente__usuario=self.request.user)
             .prefetch_related(
                 "detalleventa_set__producto__marca",
                 "detalleventa_set__producto__imagenes",
-                "envio_set",
+                # El más nuevo primero: si uno volvió "Devuelto" y se creó otro,
+                # el cliente ve el vigente (el serializer toma el primero)
+                Prefetch("envio_set", queryset=Envio.objects.order_by("-id_envio")),
             )
             .order_by("-fecha", "-id_venta")
         )
+        if self.request.query_params.get("con_envio") in ("1", "true"):
+            qs = qs.filter(envio__isnull=False).distinct()
+        return qs
 
     def get_serializer_class(self):
         if self.action == "retrieve":
