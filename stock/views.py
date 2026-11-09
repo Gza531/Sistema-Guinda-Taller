@@ -8,10 +8,11 @@ from .models import MovimientoStock, Stock
 from .serializers import MovimientoStockSerializer, NuevoMovimientoSerializer, StockSerializer
 
 
-class StockViewSet(viewsets.ReadOnlyModelViewSet):
+class StockViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
     serializer_class = StockSerializer
     permission_classes = [PermisoPorAccion]
-    permisos = {"list": "ver_stock", "retrieve": "ver_stock"}
+    permisos = {"list": "ver_stock", "retrieve": "ver_stock", "partial_update": "mover_stock"}
+    http_method_names = ["get", "patch", "head", "options"]
 
     def get_queryset(self):
         # Último movimiento de cada registro: lo calcula la base en la misma consulta

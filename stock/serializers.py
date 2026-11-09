@@ -20,7 +20,8 @@ class StockSerializer(serializers.ModelSerializer):
             "ultima_actualizacion",
             "ultima_entrada"
         ]
-        read_only_fields = ["cantidad_actual", "ultima_actualizacion"]
+        read_only_fields = ["producto", "ubicacion", "cantidad_actual", "ultima_actualizacion"]
+        extra_kwargs = {"stock_minimo": {"min_value": 0}}
 
     def get_ultima_entrada(self, stock):
         """
