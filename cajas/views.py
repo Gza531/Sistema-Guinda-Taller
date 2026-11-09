@@ -1,3 +1,4 @@
+from django.db.models import Exists, OuterRef
 from rest_framework import mixins, status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from core.permissions import PermisoPorAccion
@@ -36,7 +37,9 @@ class MetodoPagoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = MetodoPago.objects.order_by("nombre")
+        # con_movimientos: si ya se usó en algún cobro o pago (lo calcula la base en la misma consulta)
+        usados = MovimientoCaja.objects.filter(metodo_pago=OuterRef("pk"))
+        qs = MetodoPago.objects.annotate(con_movimientos=Exists(usados)).order_by("nombre")
         estado = self.request.query_params.get("estado")
         if estado in ("true", "1"):
             qs = qs.filter(estado=True)
