@@ -137,6 +137,11 @@ class MetodoPago(models.Model):
     def es_efectivo(self):
         return self.nombre == self.EFECTIVO
 
+    @property
+    def del_sistema(self):
+        """Efectivo (arqueo) y Mercado Pago (webhook de la tienda) los busca el sistema por nombre."""
+        return self.nombre in (self.EFECTIVO, self.MERCADO_PAGO)
+
 
 class MovimientoCaja(models.Model):
 

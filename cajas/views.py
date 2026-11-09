@@ -44,18 +44,20 @@ class MetodoPagoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
             qs = qs.filter(estado=False)
         return qs
 
-    def _bloquear_efectivo(self):
-        if self.get_object().es_efectivo:
+    def _bloquear_del_sistema(self):
+        metodo = self.get_object()
+        if metodo.del_sistema:
+            uso = "el arqueo de caja" if metodo.es_efectivo else "el cobro de la tienda online"
             raise PermissionDenied(
-                "El método «Efectivo» lo usa el arqueo de caja: no se puede modificar ni dar de baja."
+                f"El método «{metodo}» lo usa {uso}: no se puede modificar ni dar de baja."
             )
 
     def update(self, request, *args, **kwargs):
-        self._bloquear_efectivo()
+        self._bloquear_del_sistema()
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
-        self._bloquear_efectivo()
+        self._bloquear_del_sistema()
         return super().destroy(request, *args, **kwargs)
 
 class CajaViewSet(BajaLogicaMixin, viewsets.ModelViewSet):

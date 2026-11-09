@@ -7,6 +7,8 @@ from .services import sesion_abierta
 
 class MetodoPagoSerializer(serializers.ModelSerializer):
     """Convierte un MetodoPago a JSON (para responder) y valida el JSON que llega (para crear o editar)."""
+    del_sistema = serializers.BooleanField(read_only=True)
+
     def validate_nombre(self, valor):
         valor = valor.strip()
         repetidos = MetodoPago.objects.filter(nombre__iexact=valor)
@@ -18,7 +20,7 @@ class MetodoPagoSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = MetodoPago
-        fields = ["id_metodo_pago", "nombre", "estado"]
+        fields = ["id_metodo_pago", "nombre", "estado", "del_sistema"]
 
 
 class CajaSerializer(serializers.ModelSerializer):
