@@ -1,6 +1,8 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
+#Cualquiera puede consultar pero para modificar hay que estar autenticado
+
 class PermisoGuinda(BasePermission):
     """Por ahora: lectura libre, escritura con sesión. Después se agregan los roles acá."""
 
@@ -10,6 +12,8 @@ class PermisoGuinda(BasePermission):
         return bool(request.user and request.user.is_authenticated)
 
 
+# Devuelve True si el usuario está autenticado y, además, es superusuario o tiene una ficha de empleado asociada.
+
 def es_personal(usuario):
     """True si el usuario es un empleado del local o el superusuario."""
     return bool(
@@ -18,6 +22,7 @@ def es_personal(usuario):
         and (usuario.is_superuser or hasattr(usuario, "empleado"))
     )
 
+# Permite el acceso a usuarios autenticados con ficha de cliente que no pertenezcan al personal.
 
 class EsCliente(BasePermission):
     """Deja pasar solo a clientes de la tienda web (con sesión y sin ser personal)."""
@@ -31,6 +36,8 @@ class EsCliente(BasePermission):
             and not es_personal(usuario)
             and hasattr(usuario, "cliente")
         )
+
+# Permite el acceso a usuarios con ficha de personal
 
 class EsPersonal(BasePermission):
     """Deja pasar solo a empleados del local y al superusuario."""

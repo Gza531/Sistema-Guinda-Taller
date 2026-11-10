@@ -17,6 +17,9 @@ from .serializers import (
 )
 
 
+# Atiende las consultas y los cambios de empleados desde la API.
+# Comprueba permisos, usa los serializers y delega los cambios a los servicios.
+
 class EmpleadoViewSet(viewsets.ModelViewSet):
     """
     /api/seguridad/empleados/
@@ -29,6 +32,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
 
     serializer_class = EmpleadoSerializer
     permission_classes = [PermisoPorAccion]
+    
+    # Permiso que viene de core
+
     permisos = {
         "list": "gestionar_seguridad",
         "retrieve": "gestionar_seguridad",
@@ -39,19 +45,32 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
     }
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
+    # Definimos que empleados consulta la vista
+
     def get_queryset(self):
+
+        #Traemos un empleado y su rol 
+
         qs = (
             Empleado.objects
             .select_related("usuario")
             .prefetch_related("usuario__groups")
             .order_by("apellido", "nombre")
         )
+
+        #Filtramos el listado de empleados por estado
+
         estado = self.request.query_params.get("estado")
         if estado in ("true", "1"):
             qs = qs.filter(estado=True)
         elif estado in ("false", "0"):
             qs = qs.filter(estado=False)
 
+
+        #Busca por texto al listado del empleado
+        # Alcanza con que el texto aparezca en uno de los campos, sin distinguir mayúsculas.
+        # Si se pidió un filtro por estado, se mantiene.
+        
         buscar = self.request.query_params.get("buscar")
         if buscar:
             qs = qs.filter(
@@ -62,6 +81,9 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+
+    # Elige la clase de serializer según la acción; por defecto devuelve EmpleadoSerializer.
+
     def get_serializer_class(self):
         if self.action == "create":
             return NuevoEmpleadoSerializer
@@ -71,15 +93,25 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
             return CambiarPasswordSerializer
         return EmpleadoSerializer
 
+    # Método auxiliar, arma la respuesta que recibe el front
+    # Vuelve a consultar la ficha del empleado y devuelve sus datos con el código HTTP indicado.
+
     def _respuesta(self, empleado, codigo=status.HTTP_200_OK):
         empleado = self.get_queryset().get(pk=empleado.pk)
         return Response(EmpleadoSerializer(empleado).data, status=codigo)
+
+
+    # Valida los datos del alta, llama al servicio para crear al empleado
+    # y devuelve la ficha creada con el código HTTP 201.
 
     def create(self, request):
         entrada = NuevoEmpleadoSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
         empleado = services.crear_empleado(actor=request.user, **entrada.validated_data)
         return self._respuesta(empleado, status.HTTP_201_CREATED)
+
+    # Valida los cambios del PATCH y pasa una copia de los datos al servicio para aplicarlos.
+    # Devuelve la ficha actualizada con HTTP 200.
 
     def partial_update(self, request, pk=None):
         empleado = self.get_object()
@@ -90,9 +122,14 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         )
         return self._respuesta(empleado)
 
+
+    # Busca al empleado, aplica la baja lógica mediante el servicio y devuelve la ficha con su nuevo estado.
+
     def destroy(self, request, pk=None):
         empleado = services.dar_de_baja(actor=request.user, empleado=self.get_object())
         return self._respuesta(empleado)
+
+# Valida la contraseña nueva, delega el cambio al servicio y confirma el resultado.
 
     @action(detail=True, methods=["post"], url_path="cambiar-password")
     def cambiar_password(self, request, pk=None):
@@ -104,6 +141,8 @@ class EmpleadoViewSet(viewsets.ModelViewSet):
         )
         return Response({"mensaje": "Contraseña actualizada."})
 
+
+# Devuelve la lista de roles del personal para el formulario de empleados.
 
 class RolesAPIView(APIView):
     """GET /api/seguridad/roles/ → los roles del personal, para el formulario."""
