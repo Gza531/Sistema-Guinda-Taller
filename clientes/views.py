@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from rest_framework.exceptions import PermissionDenied
-from api.serializers import ProductoSerializer
+from catalogo.serializers import ProductoSerializer
 
 from core.mixins import BajaLogicaMixin
 from . import services
