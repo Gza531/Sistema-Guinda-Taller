@@ -80,7 +80,7 @@ class SesionCajaSerializer(serializers.ModelSerializer):
     """Lectura de una sesión de caja (apertura y, si ya cerró, su cierre)."""
 
     caja_nombre = serializers.CharField(source="caja.nombre", read_only=True)
-    usuario_username = serializers.CharField(source="usuario.username", read_only=True)
+    usuario_username = serializers.SerializerMethodField()
     abierta = serializers.SerializerMethodField()
 
     class Meta:
@@ -94,6 +94,12 @@ class SesionCajaSerializer(serializers.ModelSerializer):
 
     def get_abierta(self, obj):
         return obj.fecha_cierre is None
+
+    def get_usuario_username(self, obj):
+        #La caja online la abre el sistema con el primer cobro del día, que puede ser el de un cliente de la tienda: No se muestra ese usuario
+        if obj.caja.tipo_caja == Caja.TipoCaja.ONLINE:
+            return "Sistema (apertura automática)"
+        return obj.usuario.username
 
 
 class AbrirCajaSerializer(serializers.Serializer):

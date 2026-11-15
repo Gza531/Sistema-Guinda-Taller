@@ -178,3 +178,27 @@ class RenombrarMetodoConMovimientosTests(TestCase):
         por_nombre = {f["nombre"]: f["tiene_movimientos"] for f in filas}
         self.assertTrue(por_nombre["Transferencia"])
         self.assertFalse(por_nombre["Tarjeta de débto"])
+
+
+
+class ResponsableDeLaSesionTests(TestCase):
+    """La caja online la abre el sistema: no se muestra el usuario que pagó."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.cliente = Usuario.objects.create_user(username="cliente_web", password="x")
+        cls.encargada = Usuario.objects.create_user(username="encargada_resp", password="x")
+        cls.online = Caja.objects.create(nombre="Online resp", tipo_caja=Caja.TipoCaja.ONLINE)
+        cls.salon = Caja.objects.create(nombre="Salón resp", tipo_caja=Caja.TipoCaja.PRESENCIAL)
+
+    def test_caja_online_no_muestra_al_cliente(self):
+        from .serializers import SesionCajaSerializer
+        sesion = services.sesion_online(caja=self.online, usuario=self.cliente)
+        datos = SesionCajaSerializer(sesion).data
+        self.assertEqual(datos["usuario_username"], "Sistema (apertura automática)")
+
+    def test_caja_presencial_muestra_quien_la_abrio(self):
+        from .serializers import SesionCajaSerializer
+        sesion = services.abrir_caja(caja=self.salon, usuario=self.encargada, monto_inicial=Decimal("0"))
+        datos = SesionCajaSerializer(sesion).data
+        self.assertEqual(datos["usuario_username"], "encargada_resp")
