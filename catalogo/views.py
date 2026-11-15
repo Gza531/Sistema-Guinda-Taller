@@ -1,6 +1,7 @@
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Exists, IntegerField, OuterRef, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError
@@ -68,8 +69,32 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
         qs = super().get_queryset()
         params = self.request.query_params
 
-        # Solo el personal puede ver productos inactivos.
-        if not es_personal(self.request.user):
+        # El personal puede consultar el stock por ubicación.
+        if es_personal(self.request.user):
+            sucursal = Stock.objects.filter(
+                producto_id=OuterRef("pk"),
+                ubicacion=Stock.Ubicaciones.SUCURSAL,
+            ).values("cantidad_actual")[:1]
+
+            deposito = Stock.objects.filter(
+                producto_id=OuterRef("pk"),
+                ubicacion=Stock.Ubicaciones.DEPOSITO,
+            ).values("cantidad_actual")[:1]
+
+            qs = qs.annotate(
+                stock_sucursal=Coalesce(
+                    Subquery(sucursal),
+                    Value(0),
+                    output_field=IntegerField(),
+                ),
+                stock_deposito=Coalesce(
+                    Subquery(deposito),
+                    Value(0),
+                    output_field=IntegerField(),
+                ),
+            )
+        else:
+            # La tienda pública solo muestra productos activos.
             qs = qs.filter(estado=True)
 
         marca = params.get("marca")

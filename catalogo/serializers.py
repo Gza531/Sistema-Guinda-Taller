@@ -53,6 +53,9 @@ class ImagenProductoSerializer(serializers.ModelSerializer):
 
 
 class ProductoSerializer(serializers.ModelSerializer):
+    stock_sucursal = serializers.IntegerField(read_only=True)
+    stock_deposito = serializers.IntegerField(read_only=True)
+
     marca_nombre = serializers.CharField(
         source="marca.nombre",
         read_only=True
