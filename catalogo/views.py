@@ -69,16 +69,26 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
         qs = super().get_queryset()
         params = self.request.query_params
 
+        deposito = Stock.objects.filter(
+            producto_id=OuterRef("pk"),
+            ubicacion=Stock.Ubicaciones.DEPOSITO,
+        ).values("cantidad_actual")[:1]
+
+        # Para el tope de la bolsa (ProductoSerializer.maximo_compra).
+        # No es un campo del serializer: el número exacto no sale en la respuesta.
+        qs = qs.annotate(
+            stock_para_tienda=Coalesce(
+                Subquery(deposito),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+        )
+
         # El personal puede consultar el stock por ubicación.
         if es_personal(self.request.user):
             sucursal = Stock.objects.filter(
                 producto_id=OuterRef("pk"),
                 ubicacion=Stock.Ubicaciones.SUCURSAL,
-            ).values("cantidad_actual")[:1]
-
-            deposito = Stock.objects.filter(
-                producto_id=OuterRef("pk"),
-                ubicacion=Stock.Ubicaciones.DEPOSITO,
             ).values("cantidad_actual")[:1]
 
             qs = qs.annotate(

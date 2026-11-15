@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from catalogo.serializers import MAXIMO_POR_COMPRA
 from clientes.models import Cliente
 from ventas.services import (
     DEPOSITO,
@@ -62,6 +63,24 @@ class CheckoutAPIView(APIView):
 
         # Reutilizamos las reglas de Ventas.
         cantidades = _agrupar(datos["items"])
+
+        # Límite comercial de la tienda: hasta MAXIMO_POR_COMPRA unidades de cada
+        # producto (sumando si viene repetido). Se revisa antes que el stock para
+        # que el mensaje no revele cuántas unidades hay cuando sobran.
+        excedidos = [
+            producto.nombre
+            for producto, cantidad in cantidades.items()
+            if cantidad > MAXIMO_POR_COMPRA
+        ]
+        if excedidos:
+            # En lista, igual que el error de stock de _verificar_stock
+            raise ValidationError({
+                "items": [
+                    f"Podés comprar hasta {MAXIMO_POR_COMPRA} unidades de cada producto "
+                    f"por compra: {', '.join(excedidos)}."
+                ]
+            })
+
         # La tienda vende del Depósito; el mensaje es para el cliente (sin traslados)
         _verificar_stock(cantidades, DEPOSITO, para_cliente=True)
         lineas = _armar_lineas(cantidades)
