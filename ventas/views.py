@@ -5,6 +5,7 @@ from core.permissions import EsCliente, PermisoPorAccion
 from rest_framework.response import Response
 
 from . import services
+from cajas.models import MovimientoCaja
 from envios.models import Envio
 
 from .models import Venta
@@ -151,6 +152,15 @@ class MisComprasViewSet(viewsets.ReadOnlyModelViewSet):
                 # El más nuevo primero: si uno volvió "Devuelto" y se creó otro,
                 # el cliente ve el vigente (el serializer toma el primero)
                 Prefetch("envio_set", queryset=Envio.objects.order_by("-id_envio")),
+                # Los cobros de la venta, para mostrar con qué pagó
+                Prefetch(
+                    "movimientocaja_set",
+                    queryset=MovimientoCaja.objects
+                    .filter(tipo_movimiento=MovimientoCaja.TipoMovimiento.INGRESO)
+                    .select_related("metodo_pago")
+                    .order_by("id_movimiento_caja"),
+                    to_attr="cobros",
+                ),
             )
             .order_by("-fecha", "-id_venta")
         )
