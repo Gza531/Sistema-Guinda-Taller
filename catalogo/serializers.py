@@ -6,6 +6,12 @@ from stock.models import Stock
 from .models import Categoria, ImagenProducto, Marca, Producto
 
 
+# Límite comercial: unidades de un mismo producto por compra en la tienda web.
+# La API nunca manda más que esto, así el cliente no ve cuánto stock hay
+# cuando sobra: solo sabe hasta cuántas unidades puede llevar.
+MAXIMO_POR_COMPRA = 30
+
+
 class NombreUnicoMixin:
     """
     El nombre no puede repetirse aunque cambien mayúsculas o espacios:
@@ -68,6 +74,15 @@ class ProductoSerializer(serializers.ModelSerializer):
 
     disponible = serializers.SerializerMethodField()
     precio_promocional = serializers.SerializerMethodField()
+
+    # Hasta cuántas unidades puede poner el cliente en la bolsa: el stock del
+    # Depósito (de ahí salen las ventas online), como mucho MAXIMO_POR_COMPRA.
+    maximo_compra = serializers.SerializerMethodField()
+
+    # True si el máximo es el límite comercial (puede haber más stock):
+    # la tienda muestra "Alcanzaste el máximo permitido por compra" en vez de
+    # "No hay más unidades disponibles".
+    maximo_es_limite = serializers.SerializerMethodField()
     
     # "imagen" es la URL de la foto principal (la usan las tarjetas del catálogo)
     imagen = serializers.SerializerMethodField()
@@ -83,6 +98,28 @@ class ProductoSerializer(serializers.ModelSerializer):
             ubicacion=Stock.Ubicaciones.DEPOSITO,
             cantidad_actual__gt=0,
         ).exists()
+
+    def _stock_tienda(self, obj):
+        stock = getattr(obj, "stock_para_tienda", None)
+
+        # Sin la anotación de ProductoViewSet (ej. Mis favoritos): se consulta
+        # una vez y se guarda en el objeto para los dos campos que lo usan
+        if stock is None:
+            stock = (
+                Stock.objects
+                .filter(producto=obj, ubicacion=Stock.Ubicaciones.DEPOSITO)
+                .values_list("cantidad_actual", flat=True)
+                .first()
+            ) or 0
+            obj.stock_para_tienda = stock
+
+        return max(0, stock)
+
+    def get_maximo_compra(self, obj):
+        return min(self._stock_tienda(obj), MAXIMO_POR_COMPRA)
+
+    def get_maximo_es_limite(self, obj):
+        return self._stock_tienda(obj) >= MAXIMO_POR_COMPRA
 
     def get_imagen(self, obj):
         imagenes = list(obj.imagenes.all())

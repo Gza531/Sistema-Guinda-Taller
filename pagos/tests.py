@@ -688,3 +688,66 @@ class ConfiguracionTiendaTests(SimpleTestCase):
 
     def test_solo_lectura(self):
         self.assertEqual(APIClient().post(self.URL, {}).status_code, 405)
+
+
+class CheckoutMaximoPorCompraTests(TestCase):
+    """La tienda vende hasta 30 unidades de cada producto por compra, aunque haya más stock."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.usuario = get_user_model().objects.create_user(username="cliente_maximo", password="clave_maximo")
+        Cliente.objects.create(nombre="Cliente", apellido="Maximo", usuario=cls.usuario, estado=True)
+
+        marca = Marca.objects.create(nombre="Marca máximo")
+        categoria = Categoria.objects.create(nombre="Categoría máximo")
+        cls.producto = Producto.objects.create(
+            nombre="Perfume con mucho stock", origen=Producto.OrigenProducto.NACIONAL,
+            precio_venta=Decimal("1000.00"), marca=marca, categoria=categoria, estado=True,
+        )
+        Stock.objects.create(producto=cls.producto, ubicacion=Stock.Ubicaciones.DEPOSITO, cantidad_actual=100)
+
+    def setUp(self):
+        self.api = APIClient()
+        self.api.force_authenticate(user=self.usuario)
+
+    def comprar(self, *cantidades):
+        items = [{"producto": self.producto.pk, "cantidad": c} for c in cantidades]
+        with patch(
+            "pagos.checkout_views.crear_preferencia",
+            return_value={"id": "pref_maximo", "init_point": "https://example.test/pago"},
+        ) as mercado_pago:
+            respuesta = self.api.post(reverse("pagos-checkout"), {"items": items, "entrega": "RETIRO"}, format="json")
+        return respuesta, mercado_pago
+
+    def test_30_unidades_se_pueden_comprar(self):
+        respuesta, mercado_pago = self.comprar(30)
+        self.assertEqual(respuesta.status_code, 201)
+        mercado_pago.assert_called_once()
+
+    def test_31_unidades_se_rechazan_aunque_haya_stock(self):
+        respuesta, mercado_pago = self.comprar(31)
+        self.assertEqual(respuesta.status_code, 400)
+        mensaje = " ".join(respuesta.data["items"])
+        self.assertIn("hasta 30 unidades", mensaje)
+        self.assertIn("Perfume con mucho stock", mensaje)
+        self.assertNotIn("100", mensaje)  # no revela el stock
+        mercado_pago.assert_not_called()
+
+    def test_el_limite_suma_el_producto_repetido(self):
+        respuesta, mercado_pago = self.comprar(20, 11)
+        self.assertEqual(respuesta.status_code, 400)
+        mercado_pago.assert_not_called()
+
+    def test_el_limite_se_revisa_antes_que_el_stock(self):
+        Stock.objects.filter(producto=self.producto).update(cantidad_actual=10)
+        respuesta, _ = self.comprar(31)
+        mensaje = " ".join(respuesta.data["items"])
+        self.assertIn("hasta 30 unidades", mensaje)
+        self.assertNotIn("quedan", mensaje)
+
+    def test_sin_stock_en_deposito_no_se_compra_aunque_haya_en_el_salon(self):
+        Stock.objects.filter(producto=self.producto).update(cantidad_actual=0)
+        Stock.objects.create(producto=self.producto, ubicacion=Stock.Ubicaciones.SUCURSAL, cantidad_actual=50)
+        respuesta, mercado_pago = self.comprar(1)
+        self.assertEqual(respuesta.status_code, 400)
+        mercado_pago.assert_not_called()
