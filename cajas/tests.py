@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
-from core.permissions import ENCARGADA
+from core.permissions import ENCARGADA, RESP_STOCK, VENDEDOR
 from seguridad.models import Empleado, Usuario
 
 from . import services
@@ -202,3 +202,43 @@ class ResponsableDeLaSesionTests(TestCase):
         sesion = services.abrir_caja(caja=self.salon, usuario=self.encargada, monto_inicial=Decimal("0"))
         datos = SesionCajaSerializer(sesion).data
         self.assertEqual(datos["usuario_username"], "encargada_resp")
+
+
+class VendedorCierraCajaTests(TestCase):
+    """El Vendedor abre y también cierra la caja presencial (con el arqueo)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.vendedor = Usuario.objects.create_user(username="vendedor_test", password="x")
+        Empleado.objects.create(nombre="Vera", apellido="Sosa", usuario=cls.vendedor)
+        cls.vendedor.groups.add(Group.objects.get(name=VENDEDOR))
+
+        cls.stock = Usuario.objects.create_user(username="stock_test", password="x")
+        Empleado.objects.create(nombre="Saúl", apellido="Ríos", usuario=cls.stock)
+        cls.stock.groups.add(Group.objects.get(name=RESP_STOCK))
+
+        cls.salon = Caja.objects.create(nombre="Salón test", tipo_caja=Caja.TipoCaja.PRESENCIAL)
+
+    def _cerrar(self, usuario, sesion):
+        api = APIClient()
+        api.force_authenticate(usuario)
+        return api.post(f"/api/cajas/sesiones/{sesion.pk}/cerrar/", {"monto_final": "10000.00"}, format="json")
+
+    def test_el_vendedor_cierra_la_caja_que_abrio(self):
+        sesion = services.abrir_caja(caja=self.salon, usuario=self.vendedor, monto_inicial=Decimal("10000"))
+
+        r = self._cerrar(self.vendedor, sesion)
+
+        self.assertEqual(r.status_code, 200, r.data)
+        sesion.refresh_from_db()
+        self.assertIsNotNone(sesion.fecha_cierre)
+        self.assertEqual(r.data["arqueo"]["diferencia"], "0.00")
+
+    def test_un_rol_sin_permiso_no_puede_cerrar(self):
+        sesion = services.abrir_caja(caja=self.salon, usuario=self.vendedor, monto_inicial=Decimal("10000"))
+
+        r = self._cerrar(self.stock, sesion)
+
+        self.assertEqual(r.status_code, 403)
+        sesion.refresh_from_db()
+        self.assertIsNone(sesion.fecha_cierre)

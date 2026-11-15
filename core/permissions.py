@@ -71,7 +71,7 @@ MATRIZ = {
     # Caja
     "ver_caja": ADMINISTRACION | {VENDEDOR, RESP_ONLINE},
     "abrir_caja": ADMINISTRACION | {VENDEDOR},
-    "cerrar_caja": ADMINISTRACION,
+    "cerrar_caja": ADMINISTRACION | {VENDEDOR},
     "movimiento_manual": ADMINISTRACION,
     "administrar_cajas": ADMINISTRACION,  # alta, edición y baja de cajas y métodos de pago
     # Stock
