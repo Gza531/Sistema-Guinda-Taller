@@ -161,14 +161,28 @@ def actualizar_promocion(*, promocion, productos=None, **datos):
     """
     Actualiza una promoción existente.
     Permite modificar todos los campos o solo algunos.
+    Con estado=True reactiva una promoción desactivada, siempre que
+    su fecha de fin sea hoy o posterior.
     """
 
     promocion = Promocion.objects.select_for_update().get(
         pk=promocion.pk
     )
 
+    # Una promoción desactivada se puede reactivar editándola (estado=True)
+    reactivando = datos.get("estado") is True and not promocion.estado
+
     for campo, valor in datos.items():
         setattr(promocion, campo, valor)
+
+    # Si se reactiva, no puede volver ya vencida
+    if reactivando and promocion.fecha_fin < timezone.localdate():
+        raise ValidationError({
+            "fecha_fin": (
+                "Para reactivar la promoción, la fecha de fin "
+                "tiene que ser hoy o posterior."
+            )
+        })
 
     if productos is None:
         productos_validar = [

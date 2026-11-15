@@ -101,3 +101,6 @@ class PromocionEntradaSerializer(serializers.Serializer):
         many=True,
         allow_empty=False
     )
+
+    # Opcional: true reactiva una promoción desactivada (ver actualizar_promocion)
+    estado = serializers.BooleanField(required=False)
