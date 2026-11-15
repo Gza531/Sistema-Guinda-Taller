@@ -136,11 +136,12 @@ class MiCompraSerializer(serializers.ModelSerializer):
     estado_texto = serializers.CharField(source="get_estado_display", read_only=True)
     cantidad_productos = serializers.SerializerMethodField()
     envio = serializers.SerializerMethodField()
+    metodos_pago = serializers.SerializerMethodField()
 
     class Meta:
         model = Venta
         fields = ["id_venta", "numero_comprobante", "fecha", "tipo", "estado", "estado_texto",
-                  "total", "cantidad_productos", "envio"]
+                  "total", "cantidad_productos", "envio", "metodos_pago"]
         read_only_fields = fields
 
     def get_cantidad_productos(self, venta):
@@ -152,6 +153,21 @@ class MiCompraSerializer(serializers.ModelSerializer):
         # Sin envío = retiro en el local (o venta en el local).
         envios = venta.envio_set.all()
         return MiEnvioSerializer(envios[0]).data if envios else None
+
+    def get_metodos_pago(self, venta):
+        # Con qué pagó el cliente: los métodos de los cobros (ingresos) de la venta,
+        # sin repetir. Si se anuló, los egresos de la devolución no se cuentan.
+        # La vista los trae ya filtrados y ordenados en "cobros".
+        cobros = getattr(venta, "cobros", None)
+        if cobros is None:
+            cobros = (venta.movimientocaja_set
+                      .filter(tipo_movimiento=MovimientoCaja.TipoMovimiento.INGRESO)
+                      .select_related("metodo_pago").order_by("id_movimiento_caja"))
+        nombres = []
+        for movimiento in cobros:
+            if movimiento.metodo_pago.nombre not in nombres:
+                nombres.append(movimiento.metodo_pago.nombre)
+        return nombres
 
 
 class MiCompraDetalleSerializer(MiCompraSerializer):

@@ -224,3 +224,54 @@ class AnularVentaMercadoPagoTests(TestCase):
         self.assertIn("mercado_pago", error.exception.detail)
         # Todo como antes: la venta sigue registrada, el stock descontado, el envío pendiente
         self.assertEqual(self._estado(), ("REGISTRADA", 3, "PENDIENTE", 0))
+
+class MetodosDePagoEnMisComprasTests(TestCase):
+    """«Mis compras» muestra con qué pagó el cliente (solo los cobros, sin repetir)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        Usuario = get_user_model()
+        cls.usuario = Usuario.objects.create_user(username="cliente_pagos", password="x")
+        cls.cliente = Cliente.objects.create(nombre="Lu", apellido="Gómez", usuario=cls.usuario)
+        cls.efectivo = MetodoPago.objects.get_or_create(nombre="Efectivo")[0]
+        cls.transferencia = MetodoPago.objects.create(nombre="Transferencia test")
+        caja = Caja.objects.create(nombre="Salón pagos", tipo_caja=Caja.TipoCaja.PRESENCIAL)
+        from cajas.services import abrir_caja
+        cls.sesion = abrir_caja(caja=caja, usuario=cls.usuario, monto_inicial=Decimal("0"))
+        cls.venta = Venta.objects.create(
+            cliente=cls.cliente, usuario=cls.usuario, tipo=Venta.TipoVenta.PRESENCIAL,
+            total=Decimal("3000.00"), numero_comprobante="V-00000900",
+        )
+
+        def movimiento(metodo, monto, tipo=MovimientoCaja.TipoMovimiento.INGRESO):
+            MovimientoCaja.objects.create(
+                apertura_cierre=cls.sesion, metodo_pago=metodo, tipo_movimiento=tipo,
+                monto=Decimal(monto), venta=cls.venta, concepto="test",
+            )
+
+        # Pagó con dos métodos (uno repetido) y después se anuló (egreso)
+        movimiento(cls.efectivo, "1000")
+        movimiento(cls.transferencia, "1500")
+        movimiento(cls.efectivo, "500")
+        movimiento(cls.efectivo, "3000", MovimientoCaja.TipoMovimiento.EGRESO)
+
+    def _api(self):
+        api = APIClient()
+        api.force_authenticate(self.usuario)
+        return api
+
+    def test_listado_muestra_los_metodos_sin_repetir(self):
+        compra = self._api().get(URL).data["results"][0]
+        self.assertEqual(compra["metodos_pago"], ["Efectivo", "Transferencia test"])
+
+    def test_detalle_tambien_los_muestra(self):
+        compra = self._api().get(f"{URL}{self.venta.pk}/").data
+        self.assertEqual(compra["metodos_pago"], ["Efectivo", "Transferencia test"])
+
+    def test_sin_cobros_devuelve_lista_vacia(self):
+        venta = Venta.objects.create(
+            cliente=self.cliente, usuario=self.usuario, tipo=Venta.TipoVenta.PRESENCIAL,
+            total=Decimal("0"), numero_comprobante="V-00000901",
+        )
+        compra = self._api().get(f"{URL}{venta.pk}/").data
+        self.assertEqual(compra["metodos_pago"], [])
