@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from . import services
 from .models import MovimientoStock, Stock
 from .serializers import MovimientoStockSerializer, NuevoMovimientoSerializer, StockSerializer
+from rest_framework.exceptions import ValidationError
 
 
 class StockViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
@@ -44,9 +45,7 @@ class StockViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
         return stock
 
 
-class MovimientoStockViewSet(mixins.ListModelMixin,
-                             mixins.RetrieveModelMixin,
-                             viewsets.GenericViewSet):
+class MovimientoStockViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     permission_classes = [PermisoPorAccion]
     permisos = {
         "list": "ver_stock",
@@ -55,7 +54,25 @@ class MovimientoStockViewSet(mixins.ListModelMixin,
     }
 
     def get_queryset(self):
-        return MovimientoStock.objects.select_related("stock__producto", "usuario").order_by("-fecha")
+        movimientos = (
+            MovimientoStock.objects
+            .select_related("stock__producto", "usuario")
+            .order_by("-fecha")
+        )
+
+        producto = self.request.query_params.get("producto")
+
+        if producto is not None:
+            if not producto.isascii() or not producto.isdigit() or int(producto) < 1:
+                raise ValidationError({
+                    "producto": "Ingresá un ID de producto válido."
+                })
+
+            movimientos = movimientos.filter(
+                stock__producto_id=int(producto)
+            )
+
+        return movimientos
 
     def get_serializer_class(self):
         if self.action == "create":

@@ -88,10 +88,11 @@ def _validar(*, tipo_descuento, valor_descuento,
             "El descuento tiene que ser mayor que cero."
         )
 
-    elif tipo_descuento == T.PORCENTAJE and valor_descuento > 100:
-        errores["valor_descuento"] = (
-            "Un porcentaje va de 1 a 100."
-        )
+    elif tipo_descuento == T.PORCENTAJE:
+        if valor_descuento > 100 or valor_descuento % 1 != 0:
+            errores["valor_descuento"] = (
+                "El porcentaje debe ser un número entero de 1 a 100."
+            )
 
     if not productos:
         errores["productos"] = (
