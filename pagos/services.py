@@ -139,6 +139,8 @@ def crear_preferencia(*, cliente, lineas, costo_envio, metadata):
         "items": items,
         "metadata": metadata,
         "binary_mode": True,
+        # Cómo aparece la compra en el resumen de la tarjeta (máximo 13 caracteres)
+        "statement_descriptor": "GUINDAPERFUME",
         "payment_methods": {
             "excluded_payment_types": [
                 {"id": "ticket"}

@@ -62,6 +62,7 @@ class PreferenciaMercadoPagoTests(SimpleTestCase):
 
                 self.assertEqual(resultado["id"], "pref_prueba")
                 self.assertTrue(datos["binary_mode"])
+                self.assertEqual(datos["statement_descriptor"], "GUINDAPERFUME")
                 self.assertEqual(
                     datos["payment_methods"]["excluded_payment_types"],
                     [{"id": "ticket"}],
