@@ -57,7 +57,7 @@ class MovimientoStockViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, v
         movimientos = (
             MovimientoStock.objects
             .select_related("stock__producto", "usuario")
-            .order_by("-fecha")
+            .order_by("-fecha", "-id_movimiento_stock")
         )
 
         producto = self.request.query_params.get("producto")
@@ -71,6 +71,24 @@ class MovimientoStockViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, v
             movimientos = movimientos.filter(
                 stock__producto_id=int(producto)
             )
+
+        # Filtros de la pestaña Stock · Movimientos
+        filtros = self.request.query_params
+
+        tipo = filtros.get("tipo", "").upper()
+        if tipo:
+            if tipo not in MovimientoStock.Movimientos.values:
+                raise ValidationError({"tipo": "Tipo de movimiento inválido."})
+            movimientos = movimientos.filter(tipo_movimiento=tipo)
+
+        ubicacion = filtros.get("ubicacion", "").upper()
+        if ubicacion:
+            if ubicacion not in Stock.Ubicaciones.values:
+                raise ValidationError({"ubicacion": "Ubicación inválida."})
+            movimientos = movimientos.filter(stock__ubicacion=ubicacion)
+
+        if filtros.get("buscar"):
+            movimientos = movimientos.filter(stock__producto__nombre__icontains=filtros["buscar"].strip())
 
         return movimientos
 

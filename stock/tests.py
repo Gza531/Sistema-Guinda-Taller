@@ -111,3 +111,21 @@ class HistorialStockTests(TestCase):
         )
 
         self.assertEqual(respuesta.status_code, 400)
+
+    # ---------- Filtros de Stock · Movimientos ----------
+
+    def test_filtra_por_ubicacion(self):
+        movimientos = self.obtener_movimientos({"ubicacion": "deposito"})
+        self.assertEqual([m["producto_nombre"] for m in movimientos], ["Perfume dos"])
+
+    def test_filtra_por_tipo(self):
+        self.assertEqual(len(self.obtener_movimientos({"tipo": "ENTRADA"})), 2)
+        self.assertEqual(len(self.obtener_movimientos({"tipo": "SALIDA"})), 0)
+
+    def test_busca_por_nombre_de_producto(self):
+        movimientos = self.obtener_movimientos({"buscar": "uno"})
+        self.assertEqual([m["producto_nombre"] for m in movimientos], ["Perfume uno"])
+
+    def test_tipo_o_ubicacion_invalidos(self):
+        self.assertEqual(self.cliente.get("/api/stock/movimientos/", {"tipo": "ROBO"}).status_code, 400)
+        self.assertEqual(self.cliente.get("/api/stock/movimientos/", {"ubicacion": "CASA"}).status_code, 400)

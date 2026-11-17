@@ -118,7 +118,11 @@ class Command(BaseCommand):
                 )
 
         for nombre in METODOS_PAGO:
-            MetodoPago.objects.get_or_create(nombre=nombre)
+            MetodoPago.objects.get_or_create(
+                nombre=nombre,
+                # La caja online solo cobra con Mercado Pago y transferencia
+                defaults={"en_caja_online": nombre in ("Transferencia", "Mercado Pago")},
+            )
 
         Caja.objects.get_or_create(nombre="Caja salón", defaults=dict(tipo_caja=Caja.TipoCaja.PRESENCIAL))
         Caja.objects.get_or_create(nombre="Caja online", defaults=dict(tipo_caja=Caja.TipoCaja.ONLINE))

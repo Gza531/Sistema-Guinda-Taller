@@ -76,6 +76,26 @@ def _cliente_a_vincular(*, tipo_documento, nro_documento, apellido, email):
     return cliente
 
 
+def _cliente_por_email(*, email, apellido):
+    """
+    Sin documento, busca la ficha que el personal cargó en el local con ese email.
+    Se vincula solo si es una sola ficha activa, sin cuenta y con el mismo apellido;
+    si no, se crea una ficha nueva (puede ser un familiar que comparte el email).
+    """
+    if not email:
+        return None
+
+    candidatos = [
+        cliente
+        for cliente in Cliente.objects.select_for_update().filter(
+            email__iexact=email.strip(), usuario__isnull=True, estado=True,
+        )
+        if _normalizar(cliente.apellido) == _normalizar(apellido)
+    ]
+
+    return candidatos[0] if len(candidatos) == 1 else None
+
+
 @transaction.atomic
 def registrar_cliente(
     *,
@@ -98,6 +118,9 @@ def registrar_cliente(
             apellido=apellido,
             email=email,
         )
+    else:
+        # La tienda no pide documento: se vincula por email + apellido
+        cliente = _cliente_por_email(email=email, apellido=apellido)
 
     usuario = Usuario.objects.create_user(
         username=username,

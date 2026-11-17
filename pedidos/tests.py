@@ -33,7 +33,7 @@ class AnularVentaDePedidoTests(TestCase):
         cls.ana = Cliente.objects.create(nombre="Ana", apellido="Pérez", usuario=usuario_ana)
 
         Caja.objects.create(nombre="Caja online test", tipo_caja=Caja.TipoCaja.ONLINE)
-        cls.transferencia = MetodoPago.objects.create(nombre="Transferencia")
+        cls.transferencia = MetodoPago.objects.create(nombre="Transferencia", en_caja_online=True)
 
         cls.producto = Producto.objects.create(
             nombre="Perfume pedido",
