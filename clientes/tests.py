@@ -409,3 +409,59 @@ class RegistroVinculaFichaPorEmailTests(TestCase):
         Cliente.objects.create(nombre="Ana María", apellido="Pérez", email="ana@ejemplo.com")
         respuesta = self._registrar()
         self.assertFalse(respuesta.data["vinculado"])
+
+
+class AvatarTests(TestCase):
+    """El cliente elige uno de los avatares predefinidos desde Mi perfil."""
+
+    @classmethod
+    def setUpTestData(cls):
+        Usuario = get_user_model()
+        cls.usuario = Usuario.objects.create_user(username="avatar_test", password=CLAVE, email="avatar@test.com")
+        cls.cliente = Cliente.objects.create(
+            nombre="Abril", apellido="Sosa", email="avatar@test.com", telefono="3875551234", usuario=cls.usuario
+        )
+        cls.usuario_empleado = Usuario.objects.create_user(username="empleado_avatar", password=CLAVE)
+        Empleado.objects.create(nombre="Eva", apellido="Paz", usuario=cls.usuario_empleado)
+
+    def setUp(self):
+        self.api = APIClient()
+        self.api.force_authenticate(self.usuario)
+
+    def test_sin_elegir_el_avatar_viene_vacio(self):
+        self.assertIsNone(self.api.get(URL).data["avatar"])
+
+    def test_elige_un_avatar_sin_tocar_lo_demas(self):
+        respuesta = self.api.patch(URL, {"avatar": "avatar_3"}, format="json")
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.data["avatar"], "avatar_3")
+
+        self.cliente.refresh_from_db()
+        self.assertEqual(self.cliente.avatar, "avatar_3")
+        self.assertEqual(self.cliente.telefono, "3875551234")
+
+    def test_avatar_que_no_existe_da_400(self):
+        for valor in ("avatar_9", "https://otra-pagina.com/foto.png"):
+            respuesta = self.api.patch(URL, {"avatar": valor}, format="json")
+            self.assertEqual(respuesta.status_code, 400)
+            self.assertIn("avatar", respuesta.data)
+        self.cliente.refresh_from_db()
+        self.assertIsNone(self.cliente.avatar)
+
+    def test_vacio_o_null_saca_el_avatar(self):
+        for vacio in ("", None):
+            self.api.patch(URL, {"avatar": "avatar_1"}, format="json")
+            respuesta = self.api.patch(URL, {"avatar": vacio}, format="json")
+            self.assertEqual(respuesta.status_code, 200)
+            self.assertIsNone(respuesta.data["avatar"])
+
+    def test_el_login_devuelve_el_avatar(self):
+        Cliente.objects.filter(pk=self.cliente.pk).update(avatar="avatar_5")
+        respuesta = APIClient().post("/api/login/", {"username": "avatar_test", "password": CLAVE}, format="json")
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.data["avatar"], "avatar_5")
+
+    def test_el_login_del_personal_no_trae_avatar(self):
+        respuesta = APIClient().post("/api/login/", {"username": "empleado_avatar", "password": CLAVE}, format="json")
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertIsNone(respuesta.data["avatar"])

@@ -56,7 +56,8 @@ class MiPerfilSerializer(serializers.ModelSerializer):
         model = Cliente
         fields = [
             "username", "nombre", "apellido", "email", "telefono", "direccion",
-            "tipo_documento", "nro_documento", "fecha_alta", "documento_editable"
+            "tipo_documento", "nro_documento", "fecha_alta", "documento_editable",
+            "avatar",
         ]
         read_only_fields = fields
 
@@ -83,6 +84,10 @@ class EditarMiPerfilSerializer(serializers.Serializer):
         choices=Cliente.TipoDocumento.choices, required=False, allow_null=True, allow_blank=True
     )
     nro_documento = serializers.CharField(max_length=13, required=False, allow_blank=True, allow_null=True)
+    # Uno de los avatares predefinidos; vacío o null lo saca (vuelve el ícono por defecto)
+    avatar = serializers.ChoiceField(
+        choices=Cliente.Avatar.choices, required=False, allow_null=True, allow_blank=True
+    )
 
     def validate_nombre(self, valor):
         return validar_nombre_persona(valor, "nombre")
@@ -104,6 +109,9 @@ class EditarMiPerfilSerializer(serializers.Serializer):
 
     def validate_nro_documento(self, valor):
         return _limpiar(valor)
+
+    def validate_avatar(self, valor):
+        return valor or None
 
     def validate(self, datos):
         if not datos:

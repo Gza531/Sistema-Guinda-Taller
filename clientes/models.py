@@ -9,6 +9,16 @@ class Cliente(models.Model):
         CUIT = "CUIT", "CUIT"
         CUIL = "CUIL", "CUIL"
 
+    # Avatares predefinidos que el cliente puede elegir en "Mi perfil".
+    # Las imágenes están en el front (src/assets/avatares/); acá solo se guarda cuál eligió.
+    class Avatar(models.TextChoices):
+        AVATAR_1 = "avatar_1", "Frasco"
+        AVATAR_2 = "avatar_2", "Rosa"
+        AVATAR_3 = "avatar_3", "Gota"
+        AVATAR_4 = "avatar_4", "Hoja"
+        AVATAR_5 = "avatar_5", "Estrella"
+        AVATAR_6 = "avatar_6", "Luna"
+
     id_cliente = models.AutoField(
         primary_key=True
     )
@@ -59,6 +69,14 @@ class Cliente(models.Model):
 
     estado = models.BooleanField(
         default=True
+    )
+
+    # Imagen de perfil de la tienda online. Vacío = se muestra el ícono por defecto.
+    avatar = models.CharField(
+        max_length=20,
+        choices=Avatar.choices,
+        null=True,
+        blank=True
     )
 
     usuario = models.OneToOneField(
