@@ -8,7 +8,7 @@ from proveedores.models import ProveedorXProducto
 from .models import Compra, DetalleCompra
 from stock.models import Stock
 from stock import services as stock_services
-from cajas.models import MovimientoCaja
+from cajas.models import Caja, MovimientoCaja
 from cajas.services import registrar_movimiento_caja
 
 def pago_de(compra):
@@ -36,6 +36,14 @@ def pagar_compra(*, compra, caja, metodo_pago):
     if pago_de(compra) is not None:
         raise ValidationError({
             "estado": "La compra ya está pagada."
+        })
+
+    # A los proveedores se les paga desde una caja presencial (efectivo o transferencia).
+    # La caja online solo registra los cobros de la tienda, ventas online y pedidos:
+    # su «Total cobrado» se concilia con el reporte de Mercado Pago.
+    if caja.tipo_caja == Caja.TipoCaja.ONLINE:
+        raise ValidationError({
+            "caja": "Las compras se pagan desde una caja presencial, no desde la caja online."
         })
 
     concepto = f"Pago de compra {compra.id_compra}"
