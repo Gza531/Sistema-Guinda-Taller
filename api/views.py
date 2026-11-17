@@ -90,6 +90,9 @@ class LoginAPIView(APIView):
         es_empleado = hasattr(usuario, "empleado")
         refresh = RefreshToken.for_user(usuario)
 
+        # El avatar del cliente, para mostrarlo en el menú de la tienda (personal: None)
+        cliente = getattr(usuario, "cliente", None)
+
         if es_personal(usuario):
             registrar_auditoria(
                 usuario=usuario,
@@ -106,6 +109,7 @@ class LoginAPIView(APIView):
                 "es_empleado": es_empleado,
                 "es_superusuario": usuario.is_superuser,
                 "roles": roles,
+                "avatar": cliente.avatar if cliente else None,
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
             },
