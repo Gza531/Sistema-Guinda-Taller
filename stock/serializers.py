@@ -1,12 +1,16 @@
 from rest_framework import serializers
 
 from catalogo.models import Producto
+from pedidos.reservas import reservadas
 from .models import MovimientoStock, Stock
 
 
 class StockSerializer(serializers.ModelSerializer):
     producto_nombre = serializers.CharField(source="producto.nombre", read_only=True)
     ultima_entrada = serializers.SerializerMethodField()
+    # Depósito: unidades apartadas para pedidos y las que quedan libres para vender o trasladar
+    reservado = serializers.SerializerMethodField()
+    disponible = serializers.SerializerMethodField()
 
     class Meta:
         model = Stock
@@ -16,12 +20,24 @@ class StockSerializer(serializers.ModelSerializer):
             "producto_nombre",
             "ubicacion",
             "cantidad_actual",
+            "reservado",
+            "disponible",
             "stock_minimo",
             "ultima_actualizacion",
             "ultima_entrada"
         ]
         read_only_fields = ["producto", "ubicacion", "cantidad_actual", "ultima_actualizacion"]
         extra_kwargs = {"stock_minimo": {"min_value": 0}}
+
+    def get_reservado(self, stock):
+        valor = getattr(stock, "reservado", None)
+        if valor is None:   # sin la anotación de StockViewSet (ej. después de un PATCH)
+            valor = reservadas(stock.producto) if stock.ubicacion == Stock.Ubicaciones.DEPOSITO else 0
+            stock.reservado = valor
+        return valor
+
+    def get_disponible(self, stock):
+        return max(0, stock.cantidad_actual - self.get_reservado(stock))
 
     def get_ultima_entrada(self, stock):
         """

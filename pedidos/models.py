@@ -15,7 +15,6 @@ class Pedido(models.Model):
     class EstadoPedido(models.TextChoices):
         PENDIENTE = "PENDIENTE", "Pendiente"
         RESERVADO = "RESERVADO", "Reservado"
-        EN_ESPERA_STOCK = "EN_ESPERA_STOCK", "En espera de stock"
         LISTO = "LISTO", "Listo"
         ENTREGADO = "ENTREGADO", "Entregado"
         CANCELADO = "CANCELADO", "Cancelado"

@@ -1,6 +1,8 @@
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Exists, IntegerField, OuterRef, Q, Subquery, Value
+from django.db.models import (
+    BooleanField, ExpressionWrapper, F, IntegerField, OuterRef, Q, Subquery, Value,
+)
 from django.db.models.functions import Coalesce
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -9,6 +11,7 @@ from rest_framework.response import Response
 
 from core.mixins import BajaLogicaMixin
 from core.permissions import LecturaPublicaEscrituraPorRol, es_personal
+from pedidos.reservas import subconsulta_reservadas
 from stock.models import Stock
 
 from . import services as catalogo_services
@@ -49,16 +52,6 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
         "categoria"
     ).prefetch_related(
         "imagenes"
-    ).annotate(
-        # "disponible" = se puede comprar en la tienda online, que vende del Depósito.
-        # Lo que hay en la Sucursal (salón) no cuenta: es para la venta presencial.
-        disponible=Exists(
-            Stock.objects.filter(
-                producto=OuterRef("pk"),
-                ubicacion=Stock.Ubicaciones.DEPOSITO,
-                cantidad_actual__gt=0,
-            )
-        )
     )
 
     serializer_class = ProductoSerializer
@@ -74,14 +67,21 @@ class ProductoViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
             ubicacion=Stock.Ubicaciones.DEPOSITO,
         ).values("cantidad_actual")[:1]
 
-        # Para el tope de la bolsa (ProductoSerializer.maximo_compra).
-        # No es un campo del serializer: el número exacto no sale en la respuesta.
+        # Lo que puede vender la tienda: el Depósito menos las unidades apartadas
+        # para pedidos (pedidos/reservas.py). Lo que hay en la Sucursal (salón) no cuenta:
+        # es para la venta presencial.
+        # stock_para_tienda es para el tope de la bolsa (ProductoSerializer.maximo_compra);
+        # no es un campo del serializer: el número exacto no sale en la respuesta.
         qs = qs.annotate(
+            stock_reservado=subconsulta_reservadas(),
             stock_para_tienda=Coalesce(
                 Subquery(deposito),
                 Value(0),
                 output_field=IntegerField(),
-            ),
+            ) - F("stock_reservado"),
+        ).annotate(
+            # "disponible" = se puede comprar en la tienda online
+            disponible=ExpressionWrapper(Q(stock_para_tienda__gt=0), output_field=BooleanField()),
         )
 
         # El personal puede consultar el stock por ubicación.

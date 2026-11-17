@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from pedidos.reservas import reservadas
 from promociones.services import descuento_vigente
 from stock.models import Stock
 
@@ -61,6 +62,8 @@ class ImagenProductoSerializer(serializers.ModelSerializer):
 class ProductoSerializer(serializers.ModelSerializer):
     stock_sucursal = serializers.IntegerField(read_only=True)
     stock_deposito = serializers.IntegerField(read_only=True)
+    # Unidades del Depósito apartadas para pedidos abiertos (solo para el personal)
+    stock_reservado = serializers.SerializerMethodField()
 
     marca_nombre = serializers.CharField(
         source="marca.nombre",
@@ -88,22 +91,25 @@ class ProductoSerializer(serializers.ModelSerializer):
     imagen = serializers.SerializerMethodField()
     imagenes = ImagenProductoSerializer(many=True, read_only=True)
 
+    def get_stock_reservado(self, obj):
+        # Solo lo trae anotado la lista del personal (ProductoViewSet)
+        if getattr(obj, "stock_deposito", None) is None:
+            return None
+        return getattr(obj, "stock_reservado", 0)
+
     def get_disponible(self, obj):
         if hasattr(obj, "disponible"):
             return obj.disponible
 
         # Igual que en ProductoViewSet: disponible para la tienda = hay en el Depósito
-        return Stock.objects.filter(
-            producto=obj,
-            ubicacion=Stock.Ubicaciones.DEPOSITO,
-            cantidad_actual__gt=0,
-        ).exists()
+        # sin contar lo apartado para pedidos
+        return self._stock_tienda(obj) > 0
 
     def _stock_tienda(self, obj):
         stock = getattr(obj, "stock_para_tienda", None)
 
         # Sin la anotación de ProductoViewSet (ej. Mis favoritos): se consulta
-        # una vez y se guarda en el objeto para los dos campos que lo usan
+        # una vez y se guarda en el objeto para los campos que lo usan
         if stock is None:
             stock = (
                 Stock.objects
@@ -111,6 +117,7 @@ class ProductoSerializer(serializers.ModelSerializer):
                 .values_list("cantidad_actual", flat=True)
                 .first()
             ) or 0
+            stock -= reservadas(obj)
             obj.stock_para_tienda = stock
 
         return max(0, stock)

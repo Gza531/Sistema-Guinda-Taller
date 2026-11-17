@@ -341,10 +341,12 @@ class Command(BaseCommand):
                 p = pedidos_services.cambiar_estado(pedido=p, estado=estado)
             return p
 
-        pedido(clientes["ana"], "WHATSAPP", [_item("Chanel N°5 EDP", 1)], obs="Consulta por Chanel N°5")
+        # Los pedidos se pagan por adelantado: solo se toman con stock en el depósito
+        # (Chanel N°5 no tiene: no se puede pedir hasta que entre mercadería).
+        pedido(clientes["ana"], "WHATSAPP", [_item("Miss Dior EDP", 1)], obs="Esperando la transferencia")
         pedido(clientes["luis"], "INSTAGRAM", [_item("Good Girl EDP", 1)], [P.RESERVADO])
-        pedido(clientes["carla"], "WHATSAPP", [_item("Chanel N°5 EDP", 2)], [P.EN_ESPERA_STOCK],
-               obs="Esperando reposición del proveedor")
+        pedido(clientes["carla"], "WHATSAPP", [_item("Sauvage EDT", 2)], [P.RESERVADO],
+               obs="Transferencia recibida")
         pedido(clientes["martin"], "WEB", [_item("1 Million EDT", 1), _item("Desodorante Kaiak", 1)],
                [P.RESERVADO, P.LISTO], usuario=online, obs="Listo: probar /entregar/")
         listo = pedido(clientes["ana"], "PRESENCIAL", [_item("Labial SuperStay Matte Ink", 2)],

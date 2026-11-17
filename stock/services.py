@@ -1,6 +1,7 @@
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
+from pedidos.reservas import reservadas
 from .models import MovimientoStock, Stock
 
 
@@ -75,6 +76,18 @@ def registrar_reposicion(*, producto, origen, cantidad, usuario, motivo=None):
         raise ValidationError(
             {"cantidad": f"En {desde.ubicacion} hay {desde.cantidad_actual} unidades, no alcanza para trasladar {cantidad}."}
         )
+
+    # Del depósito no se trasladan las unidades apartadas para pedidos (ya están pagadas).
+    if origen == Stock.Ubicaciones.DEPOSITO:
+        apartadas = reservadas(producto)
+        libres = max(0, desde.cantidad_actual - apartadas)
+        if cantidad > libres:
+            raise ValidationError({
+                "cantidad": (
+                    f"En DEPOSITO hay {desde.cantidad_actual} unidades, pero {apartadas} están apartadas "
+                    f"para pedidos: se pueden trasladar {libres}."
+                )
+            })
 
     desde.cantidad_actual = desde.cantidad_actual - cantidad
     desde.save()

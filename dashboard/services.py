@@ -99,7 +99,7 @@ def cajas_abiertas():
 # Estados que todavía requieren trabajo del personal
 EP = Pedido.EstadoPedido
 EE = Envio.EstadoEnvio
-PEDIDOS_ACTIVOS = [EP.PENDIENTE, EP.RESERVADO, EP.EN_ESPERA_STOCK, EP.LISTO]
+PEDIDOS_ACTIVOS = [EP.PENDIENTE, EP.RESERVADO, EP.LISTO]
 ENVIOS_EN_CURSO = [EE.PENDIENTE, EE.PREPARADO, EE.DESPACHADO, EE.EN_TRANSITO, EE.DEMORADO]
 
 

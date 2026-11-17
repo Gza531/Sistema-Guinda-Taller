@@ -1,8 +1,9 @@
 """
 Reglas de negocio para el módulo de Pedidos.
 
-Crear o modificar un pedido no mueve stock ni caja.
-Esas operaciones se realizarán al entregar el pedido.
+Los pedidos se pagan por adelantado, así que solo se toman con stock en el Depósito
+y sus unidades quedan apartadas hasta que se entregan o se cancelan (pedidos/reservas.py).
+Crear un pedido o cambiar su estado no mueve stock ni caja: eso pasa al entregarlo.
 """
 
 from collections import OrderedDict
@@ -10,18 +11,22 @@ from collections import OrderedDict
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
+from stock.models import Stock
 from .models import DetallePedido, Pedido
+from .reservas import reservadas
 from promociones.services import precio_con_descuento
 from ventas.services import registrar_venta_online
 
 
 E = Pedido.EstadoPedido
+DEPOSITO = Stock.Ubicaciones.DEPOSITO
 
 # Estados permitidos para cambios manuales.
+# Pendiente: registrado, esperando la transferencia · Reservado: pagado ·
+# Listo: preparado para retirar o enviar. Entregar y cancelar tienen su propia acción.
 TRANSICIONES = {
-    E.PENDIENTE: {E.RESERVADO, E.EN_ESPERA_STOCK},
+    E.PENDIENTE: {E.RESERVADO},
     E.RESERVADO: {E.LISTO},
-    E.EN_ESPERA_STOCK: {E.LISTO},
     E.LISTO: set(),
 }
 
@@ -29,9 +34,29 @@ TRANSICIONES = {
 CANCELABLES = {
     E.PENDIENTE,
     E.RESERVADO,
-    E.EN_ESPERA_STOCK,
     E.LISTO,
 }
+
+
+def _verificar_disponible(productos):
+    """
+    El pedido solo se toma si el Depósito tiene las unidades libres
+    (descontando las apartadas para otros pedidos).
+    """
+    faltantes = []
+    for producto, cantidad in productos.items():
+        filas = Stock.objects.select_for_update().filter(producto=producto, ubicacion=DEPOSITO)
+        fila = filas.first()
+        hay = fila.cantidad_actual if fila else 0
+        apartadas = reservadas(producto)
+        libres = max(0, hay - apartadas)
+        if cantidad > libres:
+            detalle = f" ({apartadas} apartadas para otros pedidos)" if apartadas else ""
+            faltantes.append(
+                f"«{producto}»: hay {libres} disponibles en el depósito{detalle} y se piden {cantidad}."
+            )
+    if faltantes:
+        raise ValidationError({"items": faltantes})
 
 @transaction.atomic
 def crear_pedido(*, cliente, canal, items, usuario, observaciones=None):
@@ -64,6 +89,8 @@ def crear_pedido(*, cliente, canal, items, usuario, observaciones=None):
             productos[producto] = 0
 
         productos[producto] += cantidad
+
+    _verificar_disponible(productos)
 
     pedido = Pedido.objects.create(
         cliente=cliente,
@@ -132,7 +159,7 @@ def cancelar_pedido(*, pedido, motivo):
             "estado": (
                 f"Un pedido {pedido.get_estado_display()} "
                 "ya no se puede cancelar. Solo se cancelan "
-                "los pedidos Pendientes, Reservados, En espera de stock o Listos."
+                "los pedidos Pendientes, Reservados o Listos."
             )
         })
 
