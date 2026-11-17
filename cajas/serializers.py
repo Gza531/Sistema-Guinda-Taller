@@ -3,7 +3,7 @@ from decimal import Decimal
 from rest_framework import serializers
 
 from .models import AperturaCierreCaja, MetodoPago, Caja, MovimientoCaja
-from .services import sesion_abierta
+from .services import sesion_abierta, total_cobrado
 
 class MetodoPagoSerializer(serializers.ModelSerializer):
     """Convierte un MetodoPago a JSON (para responder) y valida el JSON que llega (para crear o editar)."""
@@ -38,7 +38,7 @@ class MetodoPagoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MetodoPago
-        fields = ["id_metodo_pago", "nombre", "estado", "del_sistema", "tiene_movimientos"]
+        fields = ["id_metodo_pago", "nombre", "estado", "en_caja_online", "del_sistema", "tiene_movimientos"]
 
 
 class CajaSerializer(serializers.ModelSerializer):
@@ -80,17 +80,24 @@ class SesionCajaSerializer(serializers.ModelSerializer):
     """Lectura de una sesión de caja (apertura y, si ya cerró, su cierre)."""
 
     caja_nombre = serializers.CharField(source="caja.nombre", read_only=True)
+    tipo_caja = serializers.CharField(source="caja.tipo_caja", read_only=True)
     usuario_username = serializers.SerializerMethodField()
     abierta = serializers.SerializerMethodField()
+    # Solo caja online: cobros menos devoluciones de la sesión (en la presencial, null)
+    total_cobrado = serializers.SerializerMethodField()
 
     class Meta:
         model = AperturaCierreCaja
         fields = [
-            "id_apertura_cierre", "caja", "caja_nombre", "usuario", "usuario_username",
+            "id_apertura_cierre", "caja", "caja_nombre", "tipo_caja", "usuario", "usuario_username",
             "fecha_apertura", "monto_inicial", "fecha_cierre", "monto_final",
-            "observaciones", "abierta",
+            "total_cobrado", "observaciones", "abierta",
         ]
         read_only_fields = fields
+
+    def get_total_cobrado(self, obj):
+        valor = total_cobrado(obj)
+        return None if valor is None else f"{valor:.2f}"
 
     def get_abierta(self, obj):
         return obj.fecha_cierre is None
@@ -136,6 +143,7 @@ class ArqueoSerializer(serializers.Serializer):
     efectivo_esperado = serializers.DecimalField(max_digits=14, decimal_places=2)
     efectivo_contado = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)
     diferencia = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)
+    total_cobrado = serializers.DecimalField(max_digits=14, decimal_places=2, allow_null=True)
     por_metodo = TotalMetodoSerializer(many=True)
 
 class MovimientoCajaSerializer(serializers.ModelSerializer):

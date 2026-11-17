@@ -11,7 +11,9 @@ from django.db import models, transaction
 from rest_framework.exceptions import ValidationError
 
 from cajas.models import Caja, MovimientoCaja
-from cajas.services import caja_online, registrar_movimiento_caja, sesion_abierta, sesion_online
+from cajas.services import (
+    caja_online, metodos_caja_online_texto, registrar_movimiento_caja, sesion_abierta, sesion_online,
+)
 from clientes.models import Cliente
 from envios.services import cancelar_envios_de_venta, crear_envio
 from pagos.services import ErrorMercadoPago, obtener_pago, reembolsar
@@ -259,9 +261,13 @@ def registrar_venta_online(*, usuario, cliente, items, pagos, entrega,
     else:
         raise ValidationError({"entrega": "Indique RETIRO o ENVIO."})
 
-    if any(pago["metodo_pago"].es_efectivo for pago in pagos):
+    no_habilitados = [pago["metodo_pago"] for pago in pagos if not pago["metodo_pago"].en_caja_online]
+    if no_habilitados:
         raise ValidationError({
-            "pagos": "La venta online no se cobra en efectivo: la caja online no maneja billetes."
+            "pagos": (
+                f"La venta online no se puede cobrar con «{no_habilitados[0]}». "
+                f"La caja online acepta: {metodos_caja_online_texto()}."
+            )
         })
 
     cantidades = _agrupar(items)

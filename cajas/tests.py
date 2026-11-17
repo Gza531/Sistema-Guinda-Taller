@@ -51,6 +51,64 @@ class CajaOnlineSinEfectivoTests(TestCase):
                 monto=Decimal("100"), metodo_pago=self.efectivo, concepto="Aporte",
             )
 
+    def test_no_acepta_metodos_no_habilitados_para_la_online(self):
+        debito = MetodoPago.objects.create(nombre="Débito test")
+        services.sesion_online(caja=self.online, usuario=self.encargada)
+        with self.assertRaises(ValidationError):
+            services.registrar_movimiento_caja(
+                caja=self.online, tipo_movimiento=MovimientoCaja.TipoMovimiento.INGRESO,
+                monto=Decimal("100"), metodo_pago=debito, concepto="Cobro",
+            )
+
+    def test_acepta_los_metodos_habilitados(self):
+        transferencia = MetodoPago.objects.create(nombre="Transferencia test", en_caja_online=True)
+        services.sesion_online(caja=self.online, usuario=self.encargada)
+        services.registrar_movimiento_caja(
+            caja=self.online, tipo_movimiento=MovimientoCaja.TipoMovimiento.INGRESO,
+            monto=Decimal("100"), metodo_pago=transferencia, concepto="Cobro",
+        )
+        self.assertEqual(MovimientoCaja.objects.filter(metodo_pago=transferencia).count(), 1)
+
+    def test_la_devolucion_de_una_venta_sale_con_su_metodo_aunque_ya_no_este_habilitado(self):
+        from clientes.models import Cliente
+        from ventas.models import Venta
+
+        tarjeta = MetodoPago.objects.create(nombre="Crédito test")   # no habilitado para la online
+        cliente = Cliente.objects.create(nombre="Lu", apellido="Gómez")
+        venta = Venta.objects.create(
+            cliente=cliente, usuario=self.encargada, tipo=Venta.TipoVenta.ONLINE,
+            total=Decimal("100.00"), numero_comprobante="V-00000901",
+        )
+        services.sesion_online(caja=self.online, usuario=self.encargada)
+        services.registrar_movimiento_caja(
+            caja=self.online, tipo_movimiento=MovimientoCaja.TipoMovimiento.EGRESO,
+            monto=Decimal("100"), metodo_pago=tarjeta, venta=venta,
+        )
+        self.assertEqual(MovimientoCaja.objects.filter(venta=venta).count(), 1)
+
+    def test_efectivo_y_mercado_pago_vienen_configurados(self):
+        self.assertFalse(self.efectivo.en_caja_online)
+        self.assertTrue(self.mercado_pago.en_caja_online)
+
+    # ---------- Total cobrado ----------
+
+    def test_total_cobrado_de_la_online(self):
+        sesion = services.sesion_online(caja=self.online, usuario=self.encargada)
+        self._cobro_online("15000")
+        self._cobro_online("2000", MovimientoCaja.TipoMovimiento.EGRESO)
+
+        self.assertEqual(services.total_cobrado(sesion), Decimal("13000.00"))
+        respuesta = self._api().get(f"/api/cajas/sesiones/{sesion.pk}/")
+        self.assertEqual(respuesta.data["total_cobrado"], "13000.00")
+        self.assertEqual(respuesta.data["tipo_caja"], "ONLINE")
+        respuesta = self._api().get(f"/api/cajas/sesiones/{sesion.pk}/resumen/")
+        self.assertEqual(respuesta.data["total_cobrado"], "13000.00")
+
+    def test_la_presencial_no_tiene_total_cobrado(self):
+        sesion = services.abrir_caja(caja=self.salon, usuario=self.encargada, monto_inicial=Decimal("1000"))
+        respuesta = self._api().get(f"/api/cajas/sesiones/{sesion.pk}/")
+        self.assertIsNone(respuesta.data["total_cobrado"])
+
     # ---------- Cierre por la API ----------
 
     def test_el_resumen_dice_el_tipo_de_caja(self):

@@ -88,6 +88,12 @@ def sesion_online(*, caja, usuario):
     )
 
 
+def metodos_caja_online_texto():
+    """'Mercado Pago, Transferencia': para los mensajes de error."""
+    nombres = MetodoPago.objects.filter(en_caja_online=True, estado=True).order_by("nombre")
+    return ", ".join(m.nombre for m in nombres) or "ninguno"
+
+
 def efectivo_disponible(sesion):
     """Efectivo que debería haber en la caja: monto inicial + ingresos en efectivo - egresos en efectivo."""
     Tipo = MovimientoCaja.TipoMovimiento
@@ -100,6 +106,23 @@ def efectivo_disponible(sesion):
         egresos=Sum("monto", filter=Q(tipo_movimiento=Tipo.EGRESO), default=cero),
     )
     return sesion.monto_inicial + totales["ingresos"] - totales["egresos"]
+
+def total_cobrado(sesion):
+    """
+    Caja online: lo que entró en la sesión (cobros menos devoluciones), con todos los métodos.
+    Reemplaza al monto inicial y final, que en la caja online no aplican (no maneja efectivo).
+    Caja presencial: None (ahí se cuenta el efectivo).
+    """
+    if sesion.caja.tipo_caja != Caja.TipoCaja.ONLINE:
+        return None
+    Tipo = MovimientoCaja.TipoMovimiento
+    cero = Decimal("0.00")
+    totales = MovimientoCaja.objects.filter(apertura_cierre=sesion).aggregate(
+        ingresos=Sum("monto", filter=Q(tipo_movimiento=Tipo.INGRESO), default=cero),
+        egresos=Sum("monto", filter=Q(tipo_movimiento=Tipo.EGRESO), default=cero),
+    )
+    return totales["ingresos"] - totales["egresos"]
+
 
 def resumen_sesion(sesion):
     """
@@ -134,6 +157,7 @@ def resumen_sesion(sesion):
         "efectivo_esperado": esperado,
         "efectivo_contado": sesion.monto_final,
         "diferencia": None if sesion.monto_final is None else sesion.monto_final - esperado,
+        "total_cobrado": total_cobrado(sesion),
         "por_metodo": [
             {"metodo": f["metodo_pago__nombre"], "ingresos": f["ingresos"], "egresos": f["egresos"]}
             for f in por_metodo
@@ -200,9 +224,16 @@ def registrar_movimiento_caja(*, caja, tipo_movimiento, monto, metodo_pago,
     if monto <= 0:
         raise ValidationError({"monto": "El monto debe ser mayor que cero."})
 
-    if caja.tipo_caja == Caja.TipoCaja.ONLINE and metodo_pago.es_efectivo:
+    # La caja online solo trabaja con los métodos habilitados para ella (Mercado Pago, transferencia...).
+    # Excepción: la devolución de una venta sale con el mismo método con que se cobró,
+    # aunque después ese método se haya deshabilitado para la caja online.
+    devolucion_de_venta = venta is not None and tipo_movimiento == MovimientoCaja.TipoMovimiento.EGRESO
+    if caja.tipo_caja == Caja.TipoCaja.ONLINE and not metodo_pago.en_caja_online and not devolucion_de_venta:
         raise ValidationError({
-            "metodo_pago": f"La caja «{caja}» es online y no maneja efectivo. Use otro método o una caja presencial."
+            "metodo_pago": (
+                f"La caja «{caja}» es online y no acepta «{metodo_pago}». "
+                f"Métodos habilitados: {metodos_caja_online_texto()}."
+            )
         })
 
     

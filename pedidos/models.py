@@ -9,7 +9,6 @@ class Pedido(models.Model):
         WHATSAPP = "WHATSAPP", "WhatsApp"
         INSTAGRAM = "INSTAGRAM", "Instagram"
         PRESENCIAL = "PRESENCIAL", "Presencial"
-        ML = "ML", "Mercado Libre"
         WEB = "WEB", "Web"
         OTRO = "OTRO", "Otro"
 

@@ -116,6 +116,12 @@ class MetodoPago(models.Model):
         default=True
     )
 
+    # Si se puede usar en la caja online (tienda web, ventas online y pedidos).
+    # Efectivo nunca; Mercado Pago siempre. El resto lo decide quien administra las cajas.
+    en_caja_online = models.BooleanField(
+        default=False
+    )
+
     class Meta:
         db_table = "metodos_pago"
 

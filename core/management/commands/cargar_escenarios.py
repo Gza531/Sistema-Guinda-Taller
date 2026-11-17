@@ -307,13 +307,13 @@ class Command(BaseCommand):
         venta(clientes["carla"], [_item("Desodorante Kaiak", 2)], "Mercado Pago")                    # PENDIENTE
         v = venta(clientes["carla"], [_item("Labial SuperStay Matte Ink", 1)], "Transferencia")
         avanzar(v, E.PREPARADO)
-        v = venta(clientes["ana"], [_item("212 VIP Men", 1)], "Crédito")
+        v = venta(clientes["ana"], [_item("212 VIP Men", 1)], "Mercado Pago")
         avanzar(v, E.PREPARADO, E.DESPACHADO, codigo="CA123456789AR")
-        v = venta(clientes["luis"], [_item("Máscara Lash Sensational", 3)], "Débito", direccion="Mitre 456, Salta")
+        v = venta(clientes["luis"], [_item("Máscara Lash Sensational", 3)], "Mercado Pago", direccion="Mitre 456, Salta")
         avanzar(v, E.PREPARADO, E.DESPACHADO, E.EN_TRANSITO, E.ENTREGADO, codigo="CA987654321AR")
         v = venta(clientes["ana"], [_item("Desodorante Ekos", 1)], "Transferencia")
         avanzar(v, E.PREPARADO, E.DESPACHADO, E.DEMORADO, empresa="Andreani", codigo="AND-55501")
-        v = venta(clientes["carla"], [_item("Base True Match", 1)], "Débito")
+        v = venta(clientes["carla"], [_item("Base True Match", 1)], "Transferencia")
         avanzar(v, E.PREPARADO, E.DESPACHADO, E.EN_TRANSITO, E.DEVUELTO, codigo="CA555000111AR")
 
         # Venta "de la tienda web" como la registra el webhook de Mercado Pago (simulada:

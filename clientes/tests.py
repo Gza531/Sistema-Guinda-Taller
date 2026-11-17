@@ -351,3 +351,61 @@ class MisFavoritosTests(TestCase):
         # El mismo producto puede ser favorito de las dos
         carla.post(self.URL, {"producto": self.perfume.pk}, format="json")
         self.assertEqual(self._ids(carla.get(self.URL)), [self.perfume.pk])
+
+
+class RegistroVinculaFichaPorEmailTests(TestCase):
+    """
+    Un cliente cargado en el local con su email, que después se registra en la tienda,
+    queda con una sola ficha: la del local, ahora con su cuenta.
+    """
+
+    REGISTRO = "/api/registro/"
+
+    def _registrar(self, **cambios):
+        datos = {
+            "nombre": "Ana", "apellido": "Pérez", "email": "ana@ejemplo.com",
+            "username": "anaperez", "password": CLAVE,
+        }
+        datos.update(cambios)
+        return APIClient().post(self.REGISTRO, datos, format="json")
+
+    def test_vincula_la_ficha_del_local(self):
+        ficha = Cliente.objects.create(
+            nombre="Ana", apellido="Perez", email="ANA@ejemplo.com", telefono="3874000000",
+        )
+        respuesta = self._registrar()
+
+        self.assertEqual(respuesta.status_code, 201, respuesta.data)
+        self.assertTrue(respuesta.data["vinculado"])
+        self.assertEqual(respuesta.data["id_cliente"], ficha.pk)
+        self.assertEqual(Cliente.objects.filter(email__iexact="ana@ejemplo.com").count(), 1)
+        ficha.refresh_from_db()
+        self.assertEqual(ficha.usuario.username, "anaperez")
+        self.assertEqual(ficha.telefono, "3874000000")   # conserva lo que cargó el local
+
+    def test_con_otro_apellido_crea_una_ficha_nueva(self):
+        Cliente.objects.create(nombre="Luis", apellido="Gómez", email="ana@ejemplo.com")
+        respuesta = self._registrar()
+
+        self.assertEqual(respuesta.status_code, 201, respuesta.data)
+        self.assertFalse(respuesta.data["vinculado"])
+        self.assertEqual(Cliente.objects.filter(email__iexact="ana@ejemplo.com").count(), 2)
+
+    def test_no_toma_una_ficha_que_ya_tiene_cuenta(self):
+        otro = get_user_model().objects.create_user(username="otra", password="x")
+        Cliente.objects.create(nombre="Ana", apellido="Pérez", email="ana@ejemplo.com", usuario=otro)
+        respuesta = self._registrar()
+
+        self.assertEqual(respuesta.status_code, 201, respuesta.data)
+        self.assertFalse(respuesta.data["vinculado"])
+
+    def test_no_toma_una_ficha_dada_de_baja(self):
+        Cliente.objects.create(nombre="Ana", apellido="Pérez", email="ana@ejemplo.com", estado=False)
+        respuesta = self._registrar()
+        self.assertFalse(respuesta.data["vinculado"])
+
+    def test_si_hay_dos_fichas_iguales_no_elige(self):
+        Cliente.objects.create(nombre="Ana", apellido="Pérez", email="ana@ejemplo.com")
+        Cliente.objects.create(nombre="Ana María", apellido="Pérez", email="ana@ejemplo.com")
+        respuesta = self._registrar()
+        self.assertFalse(respuesta.data["vinculado"])
