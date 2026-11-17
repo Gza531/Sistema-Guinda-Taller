@@ -17,6 +17,7 @@ from cajas.services import (
 from clientes.models import Cliente
 from envios.services import cancelar_envios_de_venta, crear_envio
 from pagos.services import ErrorMercadoPago, obtener_pago, reembolsar
+from pedidos.reservas import reservadas
 from promociones.services import descuento_vigente
 from stock.models import Stock
 from stock.services import registrar_entrada, registrar_salida
@@ -48,7 +49,12 @@ class Entrega(models.TextChoices):
 # ---------------------------------------------------------------- pasos comunes
 
 def _stock_en(producto, ubicacion):
-    fila = Stock.objects.filter(producto=producto, ubicacion=ubicacion).first()
+    filas = Stock.objects.filter(producto=producto, ubicacion=ubicacion)
+    # Dentro de una transacción se bloquea la fila: así dos operaciones simultáneas
+    # (una venta y un pedido, por ejemplo) no pueden usar las mismas unidades.
+    if transaction.get_connection().in_atomic_block:
+        filas = filas.select_for_update()
+    fila = filas.first()
     return fila.cantidad_actual if fila else 0
 
 
@@ -64,17 +70,28 @@ def _agrupar(items):
     return cantidades
 
 
-def _verificar_stock(cantidades, ubicacion, *, para_cliente=False):
+def _verificar_stock(cantidades, ubicacion, *, para_cliente=False, pedido=None):
     """
     Antes de escribir nada, revisa que alcance el stock de la ubicación que corresponde.
 
+    En el Depósito no cuentan las unidades apartadas para pedidos abiertos (ver
+    pedidos/reservas.py), salvo las del propio pedido que se está entregando (pedido=...).
+
     para_cliente=True (checkout de la tienda): el mensaje lo lee el cliente, así que no
-    menciona ubicaciones ni traslados, que son cosas internas del local.
+    menciona ubicaciones, traslados ni pedidos, que son cosas internas del local.
     """
     otra = DEPOSITO if ubicacion == SALON else SALON
     faltantes = []
     for producto, cantidad in cantidades.items():
         hay = _stock_en(producto, ubicacion)
+        apartadas = reservadas(producto, excluir_pedido=pedido) if ubicacion == DEPOSITO else 0
+        if apartadas and cantidad > hay - apartadas and not para_cliente:
+            faltantes.append(
+                f"«{producto}»: hay {hay} en {NOMBRE_UBICACION[ubicacion]}, {apartadas} "
+                f"apartadas para pedidos, y se piden {cantidad}."
+            )
+            continue
+        hay = max(0, hay - apartadas)
         if cantidad > hay and para_cliente:
             faltantes.append(
                 f"«{producto}»: no hay stock disponible para la compra online."
@@ -271,7 +288,7 @@ def registrar_venta_online(*, usuario, cliente, items, pagos, entrega,
         })
 
     cantidades = _agrupar(items)
-    _verificar_stock(cantidades, DEPOSITO)
+    _verificar_stock(cantidades, DEPOSITO, pedido=pedido)   # el pedido ya tiene sus unidades apartadas
     lineas = _lineas_con_precios(cantidades, precios) if precios is not None else _armar_lineas(cantidades)
     total = sum((linea["subtotal"] for linea in lineas), CERO) + costo_envio
     _validar_pagos(pagos, total)

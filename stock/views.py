@@ -1,7 +1,9 @@
-from django.db.models import F, OuterRef, Subquery
+from django.db.models import Case, F, IntegerField, OuterRef, Subquery, Value, When
 from rest_framework import mixins, status, viewsets
 from core.permissions import PermisoPorAccion
 from rest_framework.response import Response
+
+from pedidos.reservas import subconsulta_reservadas
 
 from . import services
 from .models import MovimientoStock, Stock
@@ -28,6 +30,12 @@ class StockViewSet(mixins.UpdateModelMixin, viewsets.ReadOnlyModelViewSet):
             .annotate(
                 ultimo_tipo=Subquery(ultimo.values("tipo_movimiento")[:1]),
                 ultima_cantidad=Subquery(ultimo.values("cantidad")[:1]),
+                # Unidades apartadas para pedidos (solo cuentan en el Depósito)
+                reservado=Case(
+                    When(ubicacion=Stock.Ubicaciones.DEPOSITO, then=subconsulta_reservadas("producto")),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                ),
             )
             .order_by("producto__nombre", "ubicacion")
         )
