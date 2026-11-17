@@ -275,3 +275,30 @@ class MetodosDePagoEnMisComprasTests(TestCase):
         )
         compra = self._api().get(f"{URL}{venta.pk}/").data
         self.assertEqual(compra["metodos_pago"], [])
+
+
+class ContactoDelClienteEnLaVentaTests(TestCase):
+    """El listado de ventas trae el teléfono y la dirección del cliente (Envíos → Crear los muestra)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        Usuario = get_user_model()
+        cls.admin = Usuario.objects.create_superuser(username="admin_contacto", password="x")
+        cliente = Cliente.objects.create(
+            nombre="Rocío", apellido="Díaz", telefono="3875111222", direccion="Mitre 123, Salta",
+        )
+        sin_datos = Cliente.objects.create(nombre="Luis", apellido="Gómez")
+        for numero, quien in (("V-00000950", cliente), ("V-00000951", sin_datos)):
+            Venta.objects.create(
+                cliente=quien, usuario=cls.admin, tipo=Venta.TipoVenta.ONLINE,
+                total=Decimal("1000.00"), numero_comprobante=numero,
+            )
+
+    def test_trae_telefono_y_direccion(self):
+        api = APIClient()
+        api.force_authenticate(self.admin)
+        ventas = {v["numero_comprobante"]: v for v in api.get("/api/ventas/ventas/").data["results"]}
+        con = ventas["V-00000950"]
+        self.assertEqual((con["cliente_telefono"], con["cliente_direccion"]), ("3875111222", "Mitre 123, Salta"))
+        sin = ventas["V-00000951"]
+        self.assertEqual((sin["cliente_telefono"], sin["cliente_direccion"]), (None, None))

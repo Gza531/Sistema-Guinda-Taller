@@ -41,6 +41,9 @@ class EnvioDeVentaSerializer(serializers.ModelSerializer):
 
 class VentaSerializer(serializers.ModelSerializer):
     cliente_nombre = serializers.CharField(source="cliente.__str__", read_only=True)
+    # Contacto del cliente: Envíos los muestra al armar el envío de la venta
+    cliente_telefono = serializers.CharField(source="cliente.telefono", read_only=True, allow_null=True)
+    cliente_direccion = serializers.CharField(source="cliente.direccion", read_only=True, allow_null=True)
     usuario_username = serializers.CharField(source="usuario.username", read_only=True)
     detalles = DetalleVentaSerializer(source="detalleventa_set", many=True, read_only=True)
     pagos = PagoVentaSerializer(source="movimientocaja_set", many=True, read_only=True)
@@ -50,7 +53,8 @@ class VentaSerializer(serializers.ModelSerializer):
         model = Venta
         fields = [
             "id_venta", "numero_comprobante", "fecha", "tipo", "estado", "total",
-            "cliente", "cliente_nombre", "usuario", "usuario_username",
+            "cliente", "cliente_nombre", "cliente_telefono", "cliente_direccion",
+            "usuario", "usuario_username",
             "observaciones", "pedido","mp_payment_id", "detalles", "pagos", "envios",
         ]
         read_only_fields = fields
