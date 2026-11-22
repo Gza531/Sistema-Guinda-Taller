@@ -6,8 +6,10 @@ Las variables de entorno se leen desde el docker-compose.yml / archivo .env.
 """
 
 import os
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -27,13 +29,39 @@ SECRET_KEY = os.environ.get(
 # "1" = True, cualquier otro valor (o ausencia) = False.
 DEBUG = os.environ.get('DEBUG', '0') == '1'
 
+# Sin DEBUG (modo servidor, compose.servidor.yaml) no se arranca con la clave de ejemplo:
+# hay que definir una SECRET_KEY propia, larga y aleatoria en el .env.
+if not DEBUG and (len(SECRET_KEY) < 50 or SECRET_KEY.startswith('django-insecure')):
+    raise ImproperlyConfigured(
+        "Modo servidor: definí en el .env una SECRET_KEY propia de al menos 50 caracteres "
+        "(ver README, «Modo servidor»)."
+    )
+
 # DJANGO_ALLOWED_HOSTS viene separado por comas, ej: "localhost,127.0.0.1"
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+# Un punto adelante acepta cualquier subdominio: ".trycloudflare.com"
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
+
+# Orígenes HTTPS desde los que se aceptan formularios del admin de Django.
+# Ej: "https://*.trycloudflare.com,https://guinda.com.ar"
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()]
 
 # Detrás de un túnel o proxy HTTPS (cloudflared, Caddy): a Django le llega HTTP,
 # pero el proxy avisa con X-Forwarded-Proto que el cliente usó HTTPS.
 # Así los links que arma Django (paginación "next", URLs de imágenes) salen con https.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Cabeceras de seguridad (siempre)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+
+# Modo servidor: todo por HTTPS (el túnel o el proxy pone el certificado)
+if not DEBUG:
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', '1') == '1'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))  # 1 año
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 
 # --------------------------------------------------------------------------
@@ -82,6 +110,8 @@ if os.environ.get("FRONT_URL"):
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Sirve los estáticos (estilos del admin) con Gunicorn, sin DEBUG
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     "corsheaders.middleware.CorsMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -157,9 +187,22 @@ USE_TZ = True
 # Archivos estáticos
 # --------------------------------------------------------------------------
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'   # destino de collectstatic (modo servidor)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
+
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    # Sin DEBUG, WhiteNoise sirve los estáticos comprimidos y con nombre versionado
+    "staticfiles": {
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG else
+            "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        )
+    },
+}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
