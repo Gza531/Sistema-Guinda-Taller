@@ -1,0 +1,38 @@
+# ============================================================
+# Caddy: puerta de entrada del modo servidor (compose.servidor.yaml)
+#
+#   /api, /admin, /api-auth, /static → Django (Gunicorn)
+#   /media                           → fotos de productos y avatares
+#   el resto                         → tienda y panel (React compilado)
+#
+# El HTTPS lo pone el túnel (cloudflared) o un proxy delante:
+# Caddy atiende en HTTP dentro de la máquina.
+# ============================================================
+{
+	servers {
+		# El túnel llega desde la propia máquina (red privada de Docker):
+		# se confía en su aviso de que el cliente usó HTTPS (X-Forwarded-Proto).
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	encode zstd gzip
+
+	@django path /api/* /admin/* /api-auth/* /static/*
+	handle @django {
+		reverse_proxy web:8000
+	}
+
+	handle /media/* {
+		root * /srv
+		file_server
+	}
+
+	# React: cualquier otra ruta (/panel/ventas, /producto/5...) carga index.html
+	handle {
+		root * /srv/front
+		try_files {path} /index.html
+		file_server
+	}
+}

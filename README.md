@@ -106,7 +106,10 @@ Para agregar un endpoint real sobre un modelo de su organización:
 ```
 .
 ├── Dockerfile
-├── docker-compose.yml
+├── docker-compose.yml       # desarrollo
+├── compose.servidor.yaml    # modo servidor (Gunicorn + Caddy)
+├── infra/Caddyfile          # rutas del modo servidor
+├── .dockerignore
 ├── requirements.txt
 ├── entrypoint.sh
 ├── .env.example
@@ -123,6 +126,81 @@ Para agregar un endpoint real sobre un modelo de su organización:
     ├── views.py
     └── urls.py
 ```
+
+## Modo servidor (cómo quedaría en producción)
+
+Para trabajar día a día se sigue usando `docker compose up` (desarrollo).
+`compose.servidor.yaml` levanta el sistema como quedaría en un servidor:
+
+- Django con **Gunicorn** y `DEBUG` apagado, con cookies seguras, HTTPS obligatorio y HSTS.
+- **Caddy** como única puerta de entrada (puerto 80): tienda, panel, API, admin y fotos.
+- La base de datos **no expone su puerto** fuera de Docker.
+- Los secretos (`SECRET_KEY`, Mercado Pago, mail) salen del `.env`, que no entra
+  en la imagen (`.dockerignore`) ni en GitHub (`.gitignore`).
+
+Usa la misma base que desarrollo (volumen `postgres_data`): los datos son los mismos.
+No se levantan los dos modos a la vez.
+
+### 1. Una sola vez: completar el `.env`
+
+Copiar las variables nuevas de `.env.example` (sección «Modo servidor»). Para la
+`SECRET_KEY`, con el modo desarrollo levantado:
+
+```
+docker compose exec web python -c "import secrets; print(secrets.token_urlsafe(50))"
+```
+
+### 2. Compilar el front
+
+En la carpeta del front (`Sistema_Guinda_DesarrolloWeb`):
+
+```
+npm run build
+```
+
+Queda en `dist/`. Si esa carpeta no está al lado de la del back, indicar la ruta
+en `FRONT_DIST` del `.env`.
+
+### 3. Levantar el modo servidor
+
+```
+docker compose down
+docker compose -f compose.servidor.yaml up -d --build
+docker compose -f compose.servidor.yaml exec web python manage.py check --deploy
+```
+
+El último comando tiene que terminar con «System check identified no issues».
+
+### 4. Abrirlo con un túnel HTTPS (una sola dirección para todo)
+
+```
+cloudflared tunnel --url http://localhost:80
+```
+
+Con la dirección que muestra (`https://xxxx.trycloudflare.com`), completar en el `.env`
+`FRONT_URL`, `BACKEND_PUBLIC_URL` y `FRONTEND_URL` (las tres iguales) y aplicar con
+`docker compose -f compose.servidor.yaml up -d`. La tienda queda en esa dirección,
+el panel en `/panel` y el admin de Django en `/admin`.
+
+Para probar sin túnel en `http://localhost`, poner `SECURE_SSL_REDIRECT=0` en el `.env`
+(`check --deploy` avisa que falta la redirección a HTTPS).
+
+### 5. Volver a desarrollo
+
+```
+docker compose -f compose.servidor.yaml down
+docker compose up -d
+```
+
+### Respaldo de la base
+
+```
+docker compose exec db pg_dump -U proyecto_user -d proyecto_db -Fc -f /tmp/guinda.dump
+docker compose cp db:/tmp/guinda.dump ./guinda-FECHA.dump
+```
+
+(En modo servidor, agregar `-f compose.servidor.yaml` después de `docker compose`.)
+Un respaldo vale si se probó restaurarlo en una base nueva, nunca sobre la que está en uso.
 
 ---
 Prof. Lic. Adrián Aguirre | ISDEM | Taller de Programación

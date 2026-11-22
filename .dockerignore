@@ -1,0 +1,13 @@
+# Lo que NO entra en la imagen de Docker (docker build).
+# Los secretos van por variables de entorno, nunca dentro de la imagen.
+.git
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+media/
+staticfiles/
+backups/
+*.dump
+*.patch
