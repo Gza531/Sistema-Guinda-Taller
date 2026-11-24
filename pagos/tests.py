@@ -567,6 +567,10 @@ class CheckoutStockTests(TestCase):
         """El envío suma su costo y usa la dirección del cliente."""
 
         self.cliente.direccion = "Belgrano 123"
+        # El envío también pide teléfono y documento (si están en el perfil, se usan esos)
+        self.cliente.telefono = "387 5551234"
+        self.cliente.tipo_documento = Cliente.TipoDocumento.DNI
+        self.cliente.nro_documento = "38124567"
         self.cliente.save()
 
         with patch.dict(
@@ -751,3 +755,129 @@ class CheckoutMaximoPorCompraTests(TestCase):
         respuesta, mercado_pago = self.comprar(1)
         self.assertEqual(respuesta.status_code, 400)
         mercado_pago.assert_not_called()
+
+
+class CheckoutDatosDeContactoTests(TestCase):
+    """El envío a domicilio necesita teléfono y documento; se guardan en el perfil del cliente."""
+
+    @classmethod
+    def setUpTestData(cls):
+        Usuario = get_user_model()
+        cls.usuario = Usuario.objects.create_user(username="cliente_contacto", password="clave_contacto")
+        cls.cliente = Cliente.objects.create(
+            nombre="Lucía", apellido="Fernández", usuario=cls.usuario, estado=True,
+            direccion="Belgrano 123, Salta",
+        )
+        Cliente.objects.create(
+            nombre="Otro", apellido="Cliente", estado=True,
+            tipo_documento=Cliente.TipoDocumento.DNI, nro_documento="30111222",
+        )
+
+        marca = Marca.objects.create(nombre="Marca contacto")
+        categoria = Categoria.objects.create(nombre="Categoría contacto")
+        cls.producto = Producto.objects.create(
+            nombre="Perfume contacto", origen=Producto.OrigenProducto.NACIONAL,
+            precio_venta=Decimal("1000.00"), marca=marca, categoria=categoria, estado=True,
+        )
+        Stock.objects.create(producto=cls.producto, ubicacion=Stock.Ubicaciones.DEPOSITO, cantidad_actual=10)
+
+    def setUp(self):
+        self.api = APIClient()
+        self.api.force_authenticate(user=self.usuario)
+
+    def comprar(self, entrega="ENVIO", **extra):
+        cuerpo = {"items": [{"producto": self.producto.pk, "cantidad": 1}], "entrega": entrega, **extra}
+        with patch.dict(os.environ, {"MP_COSTO_ENVIO": "3500"}):
+            with patch(
+                "pagos.checkout_views.crear_preferencia",
+                return_value={"id": "pref_contacto", "init_point": "https://example.test/pago"},
+            ) as mercado_pago:
+                respuesta = self.api.post(reverse("pagos-checkout"), cuerpo, format="json")
+        self.cliente.refresh_from_db()
+        return respuesta, mercado_pago
+
+    def comprado(self):
+        from ventas.models import Venta
+        Venta.objects.create(
+            cliente=self.cliente, usuario=self.usuario, tipo=Venta.TipoVenta.ONLINE,
+            total=1000, numero_comprobante="V-00009999",
+        )
+
+    def test_envio_sin_telefono_ni_documento_da_400(self):
+        respuesta, mercado_pago = self.comprar()
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("telefono", respuesta.data)
+        self.assertIn("nro_documento", respuesta.data)
+        mercado_pago.assert_not_called()
+
+    def test_los_datos_nuevos_quedan_en_el_perfil(self):
+        respuesta, mercado_pago = self.comprar(telefono="387 555-1234", nro_documento="38.124.567")
+        self.assertEqual(respuesta.status_code, 201)
+        mercado_pago.assert_called_once()
+        self.assertEqual(self.cliente.telefono, "387 555-1234")
+        self.assertEqual(self.cliente.tipo_documento, Cliente.TipoDocumento.DNI)
+        self.assertEqual(self.cliente.nro_documento, "38124567")
+
+    def test_si_no_los_manda_usa_los_del_perfil(self):
+        Cliente.objects.filter(pk=self.cliente.pk).update(
+            telefono="3875550000", tipo_documento="DNI", nro_documento="38124567"
+        )
+        respuesta, _ = self.comprar()
+        self.assertEqual(respuesta.status_code, 201)
+
+    def test_telefono_o_documento_invalidos(self):
+        for extra, campo in (
+            ({"telefono": "123", "nro_documento": "38124567"}, "telefono"),
+            ({"telefono": "llamame", "nro_documento": "38124567"}, "telefono"),
+            ({"telefono": "3875551234", "nro_documento": "38A24567"}, "nro_documento"),
+            ({"telefono": "3875551234", "nro_documento": "12345"}, "nro_documento"),
+        ):
+            respuesta, mercado_pago = self.comprar(**extra)
+            self.assertEqual(respuesta.status_code, 400, extra)
+            self.assertIn(campo, respuesta.data)
+            mercado_pago.assert_not_called()
+
+    def test_documento_de_otro_cliente_da_400(self):
+        respuesta, mercado_pago = self.comprar(telefono="3875551234", nro_documento="30111222")
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("nro_documento", respuesta.data)
+        mercado_pago.assert_not_called()
+
+    def test_con_compras_el_documento_no_se_cambia(self):
+        Cliente.objects.filter(pk=self.cliente.pk).update(
+            telefono="3875550000", tipo_documento="DNI", nro_documento="38124567"
+        )
+        self.comprado()
+
+        respuesta, mercado_pago = self.comprar(nro_documento="38124568")
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("nro_documento", respuesta.data)
+        mercado_pago.assert_not_called()
+        self.assertEqual(self.cliente.nro_documento, "38124567")
+
+        # El mismo documento sí pasa, y el teléfono se puede cambiar siempre
+        respuesta, _ = self.comprar(nro_documento="38124567", telefono="3875559999")
+        self.assertEqual(respuesta.status_code, 201)
+        self.assertEqual(self.cliente.telefono, "3875559999")
+
+    def test_con_compras_pero_sin_documento_lo_puede_cargar(self):
+        self.comprado()
+        respuesta, _ = self.comprar(telefono="3875551234", nro_documento="38124567")
+        self.assertEqual(respuesta.status_code, 201)
+        self.assertEqual(self.cliente.nro_documento, "38124567")
+
+    def test_con_cuit_en_el_perfil_valida_11_numeros(self):
+        Cliente.objects.filter(pk=self.cliente.pk).update(telefono="3875550000", tipo_documento="CUIT")
+        respuesta, _ = self.comprar(nro_documento="38124567")
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("CUIT", str(respuesta.data["nro_documento"]))
+
+        respuesta, _ = self.comprar(nro_documento="20-38124567-3")
+        self.assertEqual(respuesta.status_code, 201)
+        self.assertEqual(self.cliente.nro_documento, "20381245673")
+
+    def test_retiro_no_los_pide_ni_toca_el_perfil(self):
+        respuesta, _ = self.comprar(entrega="RETIRO", telefono="3875551234", nro_documento="38124567")
+        self.assertEqual(respuesta.status_code, 201)
+        self.assertIsNone(self.cliente.telefono)
+        self.assertIsNone(self.cliente.nro_documento)
