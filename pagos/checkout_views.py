@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from catalogo.serializers import MAXIMO_POR_COMPRA
+from clientes import services as clientes_services
 from clientes.models import Cliente
 from ventas.services import (
     DEPOSITO,
@@ -23,6 +24,50 @@ from .services import ErrorMercadoPago, costo_envio_configurado, crear_preferenc
 from seguridad.models import Empleado
 
 logger = logging.getLogger(__name__)
+
+# Cantidad de números según el tipo de documento del cliente
+LARGO_DOCUMENTO = {
+    Cliente.TipoDocumento.DNI: (7, 8),
+    Cliente.TipoDocumento.CUIT: (11, 11),
+    Cliente.TipoDocumento.CUIL: (11, 11),
+}
+
+
+def _datos_de_contacto(*, cliente, datos):
+    """
+    Teléfono y documento para el envío a domicilio: los que mandó el cliente o,
+    si no mandó, los de su perfil. Son obligatorios para que el correo pueda
+    avisarle y entregarle. Devuelve los cambios a guardar en su perfil.
+
+    El documento solo se puede cambiar hasta la primera compra (misma regla que
+    Mi perfil): si ya compró, tiene que llegar el mismo que tiene cargado.
+    """
+    errores = {}
+
+    telefono = datos.get("telefono") or cliente.telefono or ""
+    if not telefono:
+        errores["telefono"] = "Indicá un teléfono de contacto para el envío."
+
+    tipo = cliente.tipo_documento or Cliente.TipoDocumento.DNI
+    nro = datos.get("nro_documento") or cliente.nro_documento or ""
+    minimo, maximo = LARGO_DOCUMENTO.get(tipo, (7, 11))
+
+    if not nro:
+        errores["nro_documento"] = f"Indicá tu {tipo} para el envío."
+    elif not minimo <= len(nro) <= maximo:
+        cifras = f"{minimo} u {maximo}" if minimo != maximo else str(minimo)
+        errores["nro_documento"] = f"El {tipo} tiene {cifras} números."
+
+    if errores:
+        raise ValidationError(errores)
+
+    cambios = {}
+    if telefono != cliente.telefono:
+        cambios["telefono"] = telefono
+    if nro != cliente.nro_documento:
+        cambios.update(tipo_documento=tipo, nro_documento=nro)
+    return cambios
+
 
 class PagoNoDisponible(APIException):
     status_code = 503
@@ -87,6 +132,7 @@ class CheckoutAPIView(APIView):
 
         entrega = datos["entrega"]
         direccion = ""
+        cambios_perfil = {}
 
         if entrega == Entrega.ENVIO:
             direccion = (
@@ -99,6 +145,8 @@ class CheckoutAPIView(APIView):
                 raise ValidationError({
                     "direccion_entrega": "Indicá una dirección de entrega."
                 })
+
+            cambios_perfil = _datos_de_contacto(cliente=cliente, datos=datos)
 
         # El costo se configura en el servidor, no en React.
         try:
@@ -141,6 +189,12 @@ class CheckoutAPIView(APIView):
             "direccion_entrega": direccion or None,
             "costo_envio": str(costo_envio),
         }
+
+        # Teléfono y documento nuevos quedan en Mi perfil (la próxima vez se
+        # precargan, y el personal los ve en el envío). Valida el documento fijo
+        # y que no sea de otro cliente, igual que al editar el perfil.
+        if cambios_perfil:
+            cliente = clientes_services.actualizar_mi_perfil(cliente=cliente, datos=cambios_perfil)
 
         try:
             preferencia = crear_preferencia(
