@@ -29,6 +29,11 @@ class CheckoutSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
     )
+    localidad = serializers.CharField(
+        max_length=60,
+        required=False,
+        allow_blank=True,
+    )
 
     # Datos de contacto para el envío a domicilio (si faltan, se usan los de
     # Mi perfil). Con retiro en el local no se usan.
