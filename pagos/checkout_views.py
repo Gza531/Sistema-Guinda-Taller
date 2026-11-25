@@ -21,7 +21,7 @@ from ventas.services import (
 
 from .checkout_serializers import CheckoutSerializer
 from .services import ErrorMercadoPago, crear_preferencia
-from .tarifas import tarifa_envio
+from .tarifas import tarifa_envio, validar_destino
 from seguridad.models import Empleado
 
 logger = logging.getLogger(__name__)
@@ -71,14 +71,21 @@ def _datos_de_contacto(*, cliente, datos):
 
 
 def _costo_de_envio(datos):
-    """Costo del envío según la zona (provincia y código postal del destino)."""
+    """Costo del envío según la zona (provincia, localidad y código postal del destino)."""
     errores = {}
     if not datos.get("provincia"):
         errores["provincia"] = "Elegí la provincia de entrega."
     if not datos.get("codigo_postal"):
         errores["codigo_postal"] = "Ingresá el código postal de entrega."
+    if not datos.get("localidad", "").strip():
+        errores["localidad"] = "Ingresá la localidad de entrega."
     if errores:
         raise ValidationError(errores)
+
+    # En Salta la localidad y el CP tienen que coincidir (de eso depende la tarifa)
+    error = validar_destino(datos["provincia"], datos["localidad"], datos["codigo_postal"])
+    if error:
+        raise ValidationError({"codigo_postal": error})
 
     return tarifa_envio(datos["provincia"], datos["codigo_postal"])["costo"]
 

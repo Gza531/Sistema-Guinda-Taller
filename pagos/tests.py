@@ -593,6 +593,7 @@ class CheckoutStockTests(TestCase):
                     ],
                     "entrega": "ENVIO",
                     "provincia": "Salta",
+                    "localidad": "Salta",
                     "codigo_postal": "4400",
                 },
                 format="json",
@@ -676,6 +677,9 @@ class ConfiguracionTiendaTests(SimpleTestCase):
     def test_devuelve_las_tarifas_sin_sesion(self):
         respuesta = APIClient().get(self.URL)
         self.assertEqual(respuesta.status_code, 200)
+        localidades = {l["nombre"]: l["codigo_postal"] for l in respuesta.data["localidades_salta"]}
+        self.assertEqual(localidades["Salta"], "4400")
+        self.assertEqual(localidades["Cafayate"], "4427")
         tarifas = respuesta.data["tarifas_envio"]
         self.assertEqual(
             [(t["zona"], t["costo"]) for t in tarifas],
@@ -717,6 +721,25 @@ class TarifaEnvioTests(SimpleTestCase):
         respuesta = APIClient().get(self.URL, {"provincia": "Tucumán", "codigo_postal": "4000"})
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta.data, {"zona": "NOA", "costo": "8500.00"})
+
+    def test_validar_destino_en_salta(self):
+        from .tarifas import validar_destino
+        self.assertIsNone(validar_destino("Salta", "Salta", "4400"))
+        self.assertIsNone(validar_destino("Salta", "salta capital", "A4400ABC"))
+        self.assertIsNone(validar_destino("Salta", "cafayate", "4427"))
+        self.assertIsNone(validar_destino("Salta", "Metan", "4440"))
+        self.assertIsNone(validar_destino("Salta", "Seclantás", "4419"))
+        self.assertIn("4427", validar_destino("Salta", "Cafayate", "4400"))
+        self.assertIn("4400", validar_destino("Salta", "Seclantás", "4400"))
+        # Fuera de Salta la tarifa depende solo de la provincia: no se valida
+        self.assertIsNone(validar_destino("Jujuy", "Palpalá", "4400"))
+
+    def test_endpoint_valida_localidad_y_codigo_postal(self):
+        respuesta = APIClient().get(self.URL, {"provincia": "Salta", "localidad": "Cafayate", "codigo_postal": "4400"})
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertEqual(respuesta.data["codigo_postal"], ["El código postal de Cafayate es 4427."])
+        respuesta = APIClient().get(self.URL, {"provincia": "Salta", "localidad": "Cafayate", "codigo_postal": "4427"})
+        self.assertEqual(respuesta.data, {"zona": "Resto de Salta", "costo": "6000.00"})
 
     def test_endpoint_rechaza_destino_invalido(self):
         self.assertEqual(APIClient().get(self.URL, {"provincia": "Salta"}).status_code, 400)
@@ -822,7 +845,7 @@ class CheckoutDatosDeContactoTests(TestCase):
     def comprar(self, entrega="ENVIO", **extra):
         cuerpo = {"items": [{"producto": self.producto.pk, "cantidad": 1}], "entrega": entrega}
         if entrega == "ENVIO":
-            cuerpo.update(provincia="Salta", codigo_postal="4400")
+            cuerpo.update(provincia="Salta", localidad="Salta", codigo_postal="4400")
         cuerpo.update(extra)
         with patch(
             "pagos.checkout_views.crear_preferencia",
@@ -954,10 +977,10 @@ class CheckoutCostoPorZonaTests(TestCase):
 
     def test_cobra_la_tarifa_de_la_zona(self):
         casos = [
-            ({"provincia": "Salta", "codigo_postal": "4400"}, "3500.00"),
-            ({"provincia": "Salta", "codigo_postal": "4427"}, "6000.00"),
-            ({"provincia": "Jujuy", "codigo_postal": "4600"}, "8500.00"),
-            ({"provincia": "Córdoba", "codigo_postal": "X5000ABC"}, "12000.00"),
+            ({"provincia": "Salta", "localidad": "Salta", "codigo_postal": "4400"}, "3500.00"),
+            ({"provincia": "Salta", "localidad": "Cafayate", "codigo_postal": "4427"}, "6000.00"),
+            ({"provincia": "Jujuy", "localidad": "Palpalá", "codigo_postal": "4612"}, "8500.00"),
+            ({"provincia": "Córdoba", "localidad": "Córdoba", "codigo_postal": "X5000ABC"}, "12000.00"),
         ]
         for destino, costo in casos:
             with self.subTest(**destino):
@@ -975,11 +998,32 @@ class CheckoutCostoPorZonaTests(TestCase):
         self.assertIn("codigo_postal", respuesta.data)
         mercado_pago.assert_not_called()
 
+    def test_localidad_y_codigo_postal_de_salta_tienen_que_coincidir(self):
+        # Cafayate con el CP de la Capital: se cobraría la tarifa más barata
+        respuesta, mercado_pago = self.comprar(provincia="Salta", localidad="Cafayate", codigo_postal="4400")
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("4427", str(respuesta.data["codigo_postal"]))
+        mercado_pago.assert_not_called()
+        # Una localidad que no está en la lista no puede usar el CP de la Capital
+        respuesta, mercado_pago = self.comprar(provincia="Salta", localidad="Seclantás", codigo_postal="4400")
+        self.assertEqual(respuesta.status_code, 400)
+        mercado_pago.assert_not_called()
+        # ...pero sí otro CP de Salta (se cobra como Resto de Salta)
+        respuesta, mercado_pago = self.comprar(provincia="Salta", localidad="Seclantás", codigo_postal="4419")
+        self.assertEqual(respuesta.status_code, 201)
+        self.assertEqual(mercado_pago.call_args.kwargs["costo_envio"], Decimal("6000.00"))
+
+    def test_envio_sin_localidad_da_400(self):
+        respuesta, mercado_pago = self.comprar(provincia="Salta", codigo_postal="4400")
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("localidad", respuesta.data)
+        mercado_pago.assert_not_called()
+
     def test_destino_invalido_da_400(self):
-        respuesta, mercado_pago = self.comprar(provincia="Narnia", codigo_postal="4400")
+        respuesta, mercado_pago = self.comprar(provincia="Narnia", localidad="X", codigo_postal="4400")
         self.assertEqual(respuesta.status_code, 400)
         self.assertIn("provincia", respuesta.data)
-        respuesta, mercado_pago = self.comprar(provincia="Salta", codigo_postal="44")
+        respuesta, mercado_pago = self.comprar(provincia="Salta", localidad="Salta", codigo_postal="44")
         self.assertEqual(respuesta.status_code, 400)
         self.assertIn("codigo_postal", respuesta.data)
         mercado_pago.assert_not_called()
