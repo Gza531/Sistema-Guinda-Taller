@@ -5,12 +5,27 @@ from rest_framework import serializers
 from ventas.serializers import ItemVentaSerializer
 from ventas.services import Entrega
 
+from .tarifas import PROVINCIAS, numero_postal
+
 
 class CheckoutSerializer(serializers.Serializer):
     items = ItemVentaSerializer(many=True, allow_empty=False)
     entrega = serializers.ChoiceField(choices=Entrega.choices)
     direccion_entrega = serializers.CharField(
         max_length=200,
+        required=False,
+        allow_blank=True,
+    )
+
+    # Destino del envío: con la provincia y el código postal se calcula el costo
+    # por zona (pagos/tarifas.py). Con retiro en el local no se usan.
+    provincia = serializers.ChoiceField(
+        choices=PROVINCIAS,
+        required=False,
+        allow_blank=True,
+    )
+    codigo_postal = serializers.CharField(
+        max_length=8,
         required=False,
         allow_blank=True,
     )
@@ -27,6 +42,14 @@ class CheckoutSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
     )
+
+    def validate_codigo_postal(self, valor):
+        valor = valor.strip().upper()
+        if valor and not numero_postal(valor):
+            raise serializers.ValidationError(
+                "Usá 4 números (ej. 4400) o el formato A4400ABC."
+            )
+        return valor
 
     def validate_telefono(self, valor):
         valor = " ".join(valor.split())

@@ -573,31 +573,30 @@ class CheckoutStockTests(TestCase):
         self.cliente.nro_documento = "38124567"
         self.cliente.save()
 
-        with patch.dict(
-            os.environ,
-            {"MP_COSTO_ENVIO": "3500"},
-        ):
-            with patch(
-                "pagos.checkout_views.crear_preferencia",
-                return_value={
-                    "id": "pref_envio_e4",
-                    "init_point": "https://example.test/pago",
-                },
-            ) as mercado_pago:
+        # El costo sale de la tarifa por zona (Salta Capital: 3500)
+        with patch(
+            "pagos.checkout_views.crear_preferencia",
+            return_value={
+                "id": "pref_envio_e4",
+                "init_point": "https://example.test/pago",
+            },
+        ) as mercado_pago:
 
-                respuesta = self.cliente_api.post(
-                    self.url,
-                    {
-                        "items": [
-                            {
-                                "producto": self.producto.pk,
-                                "cantidad": 1,
-                            }
-                        ],
-                        "entrega": "ENVIO",
-                    },
-                    format="json",
-                )
+            respuesta = self.cliente_api.post(
+                self.url,
+                {
+                    "items": [
+                        {
+                            "producto": self.producto.pk,
+                            "cantidad": 1,
+                        }
+                    ],
+                    "entrega": "ENVIO",
+                    "provincia": "Salta",
+                    "codigo_postal": "4400",
+                },
+                format="json",
+            )
 
         self.assertEqual(respuesta.status_code, 201)
         self.assertEqual(
@@ -618,7 +617,7 @@ class CheckoutStockTests(TestCase):
         )
         self.assertEqual(
             argumentos["metadata"]["costo_envio"],
-            "3500",
+            "3500.00",
         )
 
         self.stock.refresh_from_db()
@@ -670,28 +669,63 @@ class CheckoutStockTests(TestCase):
         mercado_pago.assert_not_called()
 
 class ConfiguracionTiendaTests(SimpleTestCase):
-    """GET /api/pagos/configuracion/: el costo de envío que muestra la tienda."""
+    """GET /api/pagos/configuracion/: la tabla de tarifas de envío que muestra la tienda."""
 
     URL = "/api/pagos/configuracion/"
 
-    def _get(self, valor):
-        with patch.dict(os.environ, {"MP_COSTO_ENVIO": valor}):
-            return APIClient().get(self.URL)
-
-    def test_devuelve_el_costo_sin_sesion(self):
-        respuesta = self._get("3500")
+    def test_devuelve_las_tarifas_sin_sesion(self):
+        respuesta = APIClient().get(self.URL)
         self.assertEqual(respuesta.status_code, 200)
-        self.assertEqual(respuesta.data, {"costo_envio": "3500.00"})
-
-    def test_sin_configurar_el_envio_es_gratis(self):
-        self.assertEqual(self._get("").data, {"costo_envio": "0.00"})
-
-    def test_valor_invalido_devuelve_503(self):
-        self.assertEqual(self._get("abc").status_code, 503)
-        self.assertEqual(self._get("-10").status_code, 503)
+        tarifas = respuesta.data["tarifas_envio"]
+        self.assertEqual(
+            [(t["zona"], t["costo"]) for t in tarifas],
+            [
+                ("Salta Capital", "3500.00"),
+                ("Resto de Salta", "6000.00"),
+                ("NOA", "8500.00"),
+                ("Resto del país", "12000.00"),
+            ],
+        )
 
     def test_solo_lectura(self):
         self.assertEqual(APIClient().post(self.URL, {}).status_code, 405)
+
+
+class TarifaEnvioTests(SimpleTestCase):
+    """pagos/tarifas.py y GET /api/pagos/costo-envio/: costo según la zona de destino."""
+
+    URL = "/api/pagos/costo-envio/"
+
+    def test_zonas(self):
+        from .tarifas import tarifa_envio
+        casos = [
+            ("Salta", "4400", "Salta Capital", "3500.00"),
+            ("Salta", "A4400ABC", "Salta Capital", "3500.00"),
+            ("Salta", "4427", "Resto de Salta", "6000.00"),
+            ("Jujuy", "4600", "NOA", "8500.00"),
+            ("Santiago del Estero", "4200", "NOA", "8500.00"),
+            ("Córdoba", "5000", "Resto del país", "12000.00"),
+            ("Buenos Aires", "4400", "Resto del país", "12000.00"),
+        ]
+        for provincia, cp, zona, costo in casos:
+            with self.subTest(provincia=provincia, cp=cp):
+                tarifa = tarifa_envio(provincia, cp)
+                self.assertEqual(tarifa["zona"], zona)
+                self.assertEqual(tarifa["costo"], Decimal(costo))
+
+    def test_endpoint_sin_sesion(self):
+        respuesta = APIClient().get(self.URL, {"provincia": "Tucumán", "codigo_postal": "4000"})
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.data, {"zona": "NOA", "costo": "8500.00"})
+
+    def test_endpoint_rechaza_destino_invalido(self):
+        self.assertEqual(APIClient().get(self.URL, {"provincia": "Salta"}).status_code, 400)
+        self.assertEqual(
+            APIClient().get(self.URL, {"provincia": "Narnia", "codigo_postal": "4400"}).status_code, 400
+        )
+        self.assertEqual(
+            APIClient().get(self.URL, {"provincia": "Salta", "codigo_postal": "44"}).status_code, 400
+        )
 
 
 class CheckoutMaximoPorCompraTests(TestCase):
@@ -786,13 +820,15 @@ class CheckoutDatosDeContactoTests(TestCase):
         self.api.force_authenticate(user=self.usuario)
 
     def comprar(self, entrega="ENVIO", **extra):
-        cuerpo = {"items": [{"producto": self.producto.pk, "cantidad": 1}], "entrega": entrega, **extra}
-        with patch.dict(os.environ, {"MP_COSTO_ENVIO": "3500"}):
-            with patch(
-                "pagos.checkout_views.crear_preferencia",
-                return_value={"id": "pref_contacto", "init_point": "https://example.test/pago"},
-            ) as mercado_pago:
-                respuesta = self.api.post(reverse("pagos-checkout"), cuerpo, format="json")
+        cuerpo = {"items": [{"producto": self.producto.pk, "cantidad": 1}], "entrega": entrega}
+        if entrega == "ENVIO":
+            cuerpo.update(provincia="Salta", codigo_postal="4400")
+        cuerpo.update(extra)
+        with patch(
+            "pagos.checkout_views.crear_preferencia",
+            return_value={"id": "pref_contacto", "init_point": "https://example.test/pago"},
+        ) as mercado_pago:
+            respuesta = self.api.post(reverse("pagos-checkout"), cuerpo, format="json")
         self.cliente.refresh_from_db()
         return respuesta, mercado_pago
 
@@ -881,3 +917,82 @@ class CheckoutDatosDeContactoTests(TestCase):
         self.assertEqual(respuesta.status_code, 201)
         self.assertIsNone(self.cliente.telefono)
         self.assertIsNone(self.cliente.nro_documento)
+
+
+class CheckoutCostoPorZonaTests(TestCase):
+    """El checkout cobra el envío según la zona del destino (pagos/tarifas.py)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        Usuario = get_user_model()
+        cls.usuario = Usuario.objects.create_user(username="cliente_zona", password="clave_zona")
+        Cliente.objects.create(
+            nombre="Ana", apellido="Zona", usuario=cls.usuario, estado=True,
+            direccion="Belgrano 123", telefono="387 5551234",
+            tipo_documento=Cliente.TipoDocumento.DNI, nro_documento="38124568",
+        )
+        marca = Marca.objects.create(nombre="Marca zona")
+        categoria = Categoria.objects.create(nombre="Categoría zona")
+        cls.producto = Producto.objects.create(
+            nombre="Perfume zona", origen=Producto.OrigenProducto.NACIONAL,
+            precio_venta=Decimal("1000.00"), marca=marca, categoria=categoria, estado=True,
+        )
+        Stock.objects.create(producto=cls.producto, ubicacion=Stock.Ubicaciones.DEPOSITO, cantidad_actual=10)
+
+    def setUp(self):
+        self.api = APIClient()
+        self.api.force_authenticate(user=self.usuario)
+
+    def comprar(self, **destino):
+        cuerpo = {"items": [{"producto": self.producto.pk, "cantidad": 1}], "entrega": "ENVIO", **destino}
+        with patch(
+            "pagos.checkout_views.crear_preferencia",
+            return_value={"id": "pref_zona", "init_point": "https://example.test/pago"},
+        ) as mercado_pago:
+            respuesta = self.api.post(reverse("pagos-checkout"), cuerpo, format="json")
+        return respuesta, mercado_pago
+
+    def test_cobra_la_tarifa_de_la_zona(self):
+        casos = [
+            ({"provincia": "Salta", "codigo_postal": "4400"}, "3500.00"),
+            ({"provincia": "Salta", "codigo_postal": "4427"}, "6000.00"),
+            ({"provincia": "Jujuy", "codigo_postal": "4600"}, "8500.00"),
+            ({"provincia": "Córdoba", "codigo_postal": "X5000ABC"}, "12000.00"),
+        ]
+        for destino, costo in casos:
+            with self.subTest(**destino):
+                respuesta, mercado_pago = self.comprar(**destino)
+                self.assertEqual(respuesta.status_code, 201)
+                argumentos = mercado_pago.call_args.kwargs
+                self.assertEqual(argumentos["costo_envio"], Decimal(costo))
+                self.assertEqual(argumentos["metadata"]["costo_envio"], costo)
+                self.assertEqual(Decimal(respuesta.data["total"]), Decimal("1000.00") + Decimal(costo))
+
+    def test_envio_sin_provincia_ni_codigo_postal_da_400(self):
+        respuesta, mercado_pago = self.comprar()
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("provincia", respuesta.data)
+        self.assertIn("codigo_postal", respuesta.data)
+        mercado_pago.assert_not_called()
+
+    def test_destino_invalido_da_400(self):
+        respuesta, mercado_pago = self.comprar(provincia="Narnia", codigo_postal="4400")
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("provincia", respuesta.data)
+        respuesta, mercado_pago = self.comprar(provincia="Salta", codigo_postal="44")
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("codigo_postal", respuesta.data)
+        mercado_pago.assert_not_called()
+
+    def test_retiro_no_cobra_envio(self):
+        with patch(
+            "pagos.checkout_views.crear_preferencia",
+            return_value={"id": "pref_zona", "init_point": "https://example.test/pago"},
+        ) as mercado_pago:
+            respuesta = self.api.post(
+                reverse("pagos-checkout"),
+                {"items": [{"producto": self.producto.pk, "cantidad": 1}], "entrega": "RETIRO"},
+                format="json",
+            )
+        self.assertEqual(respuesta.status_code, 201)
+        self.assertEqual(mercado_pago.call_args.kwargs["costo_envio"], Decimal("0.00"))

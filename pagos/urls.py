@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import ConfiguracionTiendaAPIView
+from .views import ConfiguracionTiendaAPIView, CostoEnvioAPIView
 from .checkout_views import CheckoutAPIView
 from .webhook_views import WebhookMercadoPagoAPIView
 
@@ -8,6 +8,12 @@ urlpatterns = [
         "configuracion/",
         ConfiguracionTiendaAPIView.as_view(),
         name="pagos-configuracion",
+    ),
+
+    path(
+        "costo-envio/",
+        CostoEnvioAPIView.as_view(),
+        name="pagos-costo-envio",
     ),
 
     path(
