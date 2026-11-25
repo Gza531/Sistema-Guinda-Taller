@@ -20,7 +20,8 @@ from ventas.services import (
 )
 
 from .checkout_serializers import CheckoutSerializer
-from .services import ErrorMercadoPago, costo_envio_configurado, crear_preferencia
+from .services import ErrorMercadoPago, crear_preferencia
+from .tarifas import tarifa_envio
 from seguridad.models import Empleado
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,19 @@ def _datos_de_contacto(*, cliente, datos):
     if nro != cliente.nro_documento:
         cambios.update(tipo_documento=tipo, nro_documento=nro)
     return cambios
+
+
+def _costo_de_envio(datos):
+    """Costo del envío según la zona (provincia y código postal del destino)."""
+    errores = {}
+    if not datos.get("provincia"):
+        errores["provincia"] = "Elegí la provincia de entrega."
+    if not datos.get("codigo_postal"):
+        errores["codigo_postal"] = "Ingresá el código postal de entrega."
+    if errores:
+        raise ValidationError(errores)
+
+    return tarifa_envio(datos["provincia"], datos["codigo_postal"])["costo"]
 
 
 class PagoNoDisponible(APIException):
@@ -148,23 +162,10 @@ class CheckoutAPIView(APIView):
 
             cambios_perfil = _datos_de_contacto(cliente=cliente, datos=datos)
 
-        # El costo se configura en el servidor, no en React.
-        try:
-            costo_configurado = costo_envio_configurado()
-        except ImproperlyConfigured as error:
-            raise PagoNoDisponible() from error
-
-        if (
-            not costo_configurado.is_finite()
-            or costo_configurado < 0
-        ):
-            raise PagoNoDisponible()
-
-        costo_envio = (
-            costo_configurado
-            if entrega == Entrega.ENVIO
-            else Decimal("0.00")
-        )
+        # El costo sale de la tabla de tarifas por zona del servidor, no de React.
+        costo_envio = Decimal("0.00")
+        if entrega == Entrega.ENVIO:
+            costo_envio = _costo_de_envio(datos)
 
         total = sum(
             (linea["subtotal"] for linea in lineas),

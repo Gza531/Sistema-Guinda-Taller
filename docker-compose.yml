@@ -46,7 +46,6 @@ services:
       # Mercado Pago
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
-      MP_COSTO_ENVIO: ${MP_COSTO_ENVIO:-0}
       FRONT_URL: ${FRONT_URL:-}
       BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-}
       # Recuperación de contraseñas
