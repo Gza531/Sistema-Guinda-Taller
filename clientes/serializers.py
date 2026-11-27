@@ -8,11 +8,15 @@ from .validaciones import validar_nombre_persona
 
 class ClienteSerializer(serializers.ModelSerializer):
 
+    # Nombre de usuario de su cuenta en la tienda web (None si no tiene cuenta)
+    usuario_username = serializers.CharField(source="usuario.username", read_only=True, default=None)
+
     class Meta:
         model = Cliente
         fields = [
             "id_cliente", "nombre", "apellido", "tipo_documento", "nro_documento",
             "telefono", "email", "direccion", "fecha_alta", "estado", "usuario",
+            "usuario_username",
         ]
         read_only_fields = ["fecha_alta", "usuario"]
 

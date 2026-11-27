@@ -465,3 +465,38 @@ class AvatarTests(TestCase):
         respuesta = APIClient().post("/api/login/", {"username": "empleado_avatar", "password": CLAVE}, format="json")
         self.assertEqual(respuesta.status_code, 200)
         self.assertIsNone(respuesta.data["avatar"])
+
+
+class CuentaWebEnListadoTests(TestCase):
+    """GET /api/clientes/clientes/: el personal ve con qué usuario tiene cuenta cada cliente."""
+
+    URL = "/api/clientes/clientes/"
+
+    @classmethod
+    def setUpTestData(cls):
+        Usuario = get_user_model()
+        cls.admin = Usuario.objects.create_superuser(username="admin_cuentas", password="x")
+        cls.con_cuenta = Cliente.objects.create(
+            nombre="Ana", apellido="Cuenta", usuario=Usuario.objects.create_user(username="anaweb", password="x"),
+        )
+        cls.sin_cuenta = Cliente.objects.create(nombre="Luis", apellido="Cuenta")
+
+    def setUp(self):
+        self.api = APIClient()
+        self.api.force_authenticate(self.admin)
+
+    def _listar(self, **filtros):
+        respuesta = self.api.get(self.URL, {"page": 1, "buscar": "Cuenta", **filtros})
+        self.assertEqual(respuesta.status_code, 200)
+        return {c["nombre"]: c["usuario_username"] for c in respuesta.data["results"]}
+
+    def test_muestra_el_usuario_o_nada(self):
+        self.assertEqual(self._listar(), {"Ana": "anaweb", "Luis": None})
+
+    def test_filtra_con_y_sin_cuenta(self):
+        self.assertEqual(self._listar(cuenta="si"), {"Ana": "anaweb"})
+        self.assertEqual(self._listar(cuenta="no"), {"Luis": None})
+
+    def test_busca_por_usuario(self):
+        respuesta = self.api.get(self.URL, {"page": 1, "buscar": "anaweb"})
+        self.assertEqual([c["nombre"] for c in respuesta.data["results"]], ["Ana"])

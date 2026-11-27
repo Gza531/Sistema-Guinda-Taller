@@ -41,14 +41,19 @@ class ClienteViewSet(BajaLogicaMixin, viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = super().get_queryset()  # ya trae el filtro ?estado= del mixin
+        qs = super().get_queryset().select_related("usuario")  # ya trae el filtro ?estado= del mixin
         buscar = self.request.query_params.get("buscar")
         if buscar:
             qs = qs.filter(
                 Q(nombre__icontains=buscar)
                 | Q(apellido__icontains=buscar)
                 | Q(nro_documento__icontains=buscar)
+                | Q(usuario__username__icontains=buscar)
             )
+        # ?cuenta=si → solo los que tienen cuenta en la tienda web · ?cuenta=no → los que no
+        cuenta = self.request.query_params.get("cuenta")
+        if cuenta in ("si", "no"):
+            qs = qs.filter(usuario__isnull=(cuenta == "no"))
         return qs
 
     def _bloquear_consumidor_final(self):
