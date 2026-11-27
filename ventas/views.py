@@ -1,4 +1,6 @@
-from django.db.models import Prefetch
+from decimal import Decimal
+
+from django.db.models import Prefetch, Sum
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from core.permissions import EsCliente, PermisoPorAccion
@@ -73,6 +75,25 @@ class VentaViewSet(mixins.ListModelMixin,
         if p.get("hasta"):
             qs = qs.filter(fecha__date__lte=p["hasta"])
         return qs
+
+    def list(self, request, *args, **kwargs):
+        """
+        Además de la página, devuelve el resumen de TODAS las ventas que cumplen
+        los filtros (ej. ?desde=2026-11-01&hasta=2026-11-30): el reporte del período.
+            "resumen": { "cantidad": 12, "total": "2411200.00", "anuladas": 1 }
+        cantidad y total cuentan solo las registradas (una anulada no suma).
+        """
+        respuesta = super().list(request, *args, **kwargs)
+        if isinstance(respuesta.data, dict):
+            ventas = self.filter_queryset(self.get_queryset()).order_by()
+            registradas = ventas.filter(estado=Venta.EstadoVenta.REGISTRADA)
+            total = registradas.aggregate(total=Sum("total"))["total"] or Decimal("0.00")
+            respuesta.data["resumen"] = {
+                "cantidad": registradas.count(),
+                "total": str(total.quantize(Decimal("0.01"))),
+                "anuladas": ventas.filter(estado=Venta.EstadoVenta.ANULADA).count(),
+            }
+        return respuesta
 
     def get_serializer_class(self):
         if self.action == "create":
