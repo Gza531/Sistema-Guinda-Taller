@@ -302,3 +302,55 @@ class ContactoDelClienteEnLaVentaTests(TestCase):
         self.assertEqual((con["cliente_telefono"], con["cliente_direccion"]), ("3875111222", "Mitre 123, Salta"))
         sin = ventas["V-00000951"]
         self.assertEqual((sin["cliente_telefono"], sin["cliente_direccion"]), (None, None))
+
+
+class ResumenDelPeriodoTests(TestCase):
+    """GET /api/ventas/ventas/?desde=&hasta=: además de la página, el resumen del período."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from datetime import datetime
+        from django.utils import timezone
+
+        Usuario = get_user_model()
+        cls.admin = Usuario.objects.create_superuser(username="admin_periodo", password="x")
+        cliente = Cliente.objects.create(nombre="Rocío", apellido="Periodo")
+        # 2 registradas y 1 anulada el 10/11; 1 registrada el 20/11
+        ventas = [
+            ("V-00000960", "2026-11-10", "1000.00", Venta.EstadoVenta.REGISTRADA),
+            ("V-00000961", "2026-11-10", "2500.50", Venta.EstadoVenta.REGISTRADA),
+            ("V-00000962", "2026-11-10", "9999.00", Venta.EstadoVenta.ANULADA),
+            ("V-00000963", "2026-11-20", "700.00", Venta.EstadoVenta.REGISTRADA),
+        ]
+        for numero, dia, total, estado in ventas:
+            venta = Venta.objects.create(
+                cliente=cliente, usuario=cls.admin, tipo=Venta.TipoVenta.PRESENCIAL,
+                total=Decimal(total), numero_comprobante=numero, estado=estado,
+            )
+            fecha = timezone.make_aware(datetime.fromisoformat(f"{dia}T12:00:00"))
+            Venta.objects.filter(pk=venta.pk).update(fecha=fecha)
+
+    def setUp(self):
+        self.api = APIClient()
+        self.api.force_authenticate(self.admin)
+
+    def _resumen(self, **filtros):
+        respuesta = self.api.get("/api/ventas/ventas/", {"page": 1, **filtros})
+        self.assertEqual(respuesta.status_code, 200)
+        return respuesta.data["resumen"]
+
+    def test_resumen_de_un_dia_sin_contar_las_anuladas(self):
+        self.assertEqual(
+            self._resumen(desde="2026-11-10", hasta="2026-11-10"),
+            {"cantidad": 2, "total": "3500.50", "anuladas": 1},
+        )
+
+    def test_resumen_del_periodo_y_de_un_dia_sin_ventas(self):
+        self.assertEqual(
+            self._resumen(desde="2026-11-01", hasta="2026-11-30"),
+            {"cantidad": 3, "total": "4200.50", "anuladas": 1},
+        )
+        self.assertEqual(
+            self._resumen(desde="2026-11-15", hasta="2026-11-15"),
+            {"cantidad": 0, "total": "0.00", "anuladas": 0},
+        )
