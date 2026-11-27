@@ -309,7 +309,7 @@ def registrar_venta_online(*, usuario, cliente, items, pagos, entrega,
 
     # ---- 3. Envío: si falla (por ejemplo, sin dirección), se deshace toda la venta ----
     if entrega == Entrega.ENVIO:
-        crear_envio(venta=venta, direccion_entrega=direccion_entrega, costo=costo_envio)
+        crear_envio(venta=venta, direccion_entrega=direccion_entrega, costo=costo_envio, costo_cobrado=True)
 
     # ---- 4. Cobro en la caja online (se abre sola si hace falta) ----
     sesion_online(caja=caja, usuario=usuario)

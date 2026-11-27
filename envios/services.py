@@ -42,7 +42,8 @@ def crear_envio(
     direccion_entrega=None,
     costo=None,
     empresa_transporte=None,
-    codigo_seguimiento=None
+    codigo_seguimiento=None,
+    costo_cobrado=False
 ):
     venta = Venta.objects.select_for_update().select_related("cliente").get(pk=venta.pk)
 
@@ -75,6 +76,7 @@ def crear_envio(
         venta=venta,
         direccion_entrega=direccion,
         costo=costo,
+        costo_cobrado=costo_cobrado,
         empresa_transporte=(empresa_transporte or "").strip() or None,
         codigo_seguimiento=(codigo_seguimiento or "").strip() or None
     )
@@ -90,6 +92,13 @@ def actualizar_envio(*, envio, **datos):
                 f"Un envío {envio.get_estado_display()} "
                 "ya no se puede modificar."
             )
+        })
+
+    # El costo que ya se cobró en la venta no se cambia: el envío tiene que
+    # mostrar lo mismo que se le cobró al cliente.
+    if envio.costo_cobrado and "costo" in datos and datos["costo"] != envio.costo:
+        raise ValidationError({
+            "costo": "El costo de este envío se cobró en la venta y no se puede cambiar."
         })
 
     for campo, valor in datos.items():
@@ -184,6 +193,13 @@ def eliminar_envio(*, envio):
                 f"Un envío {envio.get_estado_display()} "
                 "no se puede eliminar."
             )
+        })
+
+    # Si se cobró en la venta, el envío es parte de lo que se le vendió al cliente:
+    # se cancela anulando la venta, no borrándolo.
+    if envio.costo_cobrado:
+        raise ValidationError({
+            "estado": "Este envío se cobró en la venta: no se puede eliminar. Si no se va a enviar, anulá la venta."
         })
 
     envio.delete()

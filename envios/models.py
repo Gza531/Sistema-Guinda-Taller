@@ -53,6 +53,13 @@ class Envio(models.Model):
         blank=True
     )
 
+    # El costo se cobró dentro de la venta (compra de la tienda, venta online o
+    # pedido entregado con envío). Así queda fijo: no se puede cambiar después.
+    # En un envío armado a mano desde Gestión es informativo y se puede editar.
+    costo_cobrado = models.BooleanField(
+        default=False
+    )
+
     venta = models.ForeignKey(
         "ventas.Venta",
         on_delete=models.PROTECT,

@@ -27,6 +27,7 @@ class EnvioSerializer(serializers.ModelSerializer):
             "cliente_nombre",
             "direccion_entrega",
             "costo",
+            "costo_cobrado",
             "empresa_transporte",
             "codigo_seguimiento",
             "estado",
